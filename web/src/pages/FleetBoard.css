@@ -2,55 +2,50 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  gap: 0.5rem;
-  font-family: system-ui, sans-serif;
+  gap: var(--space-3);
 }
 
 .fleet-board__launch {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
-.fleet-board__launch input {
-  flex: 1;
-  padding: 0.4rem 0.6rem;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-  font-family: inherit;
-  font-size: 0.85rem;
-}
-
-.fleet-board__launch button {
-  padding: 0.4rem 0.9rem;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-  background: white;
+.fleet-board__launch-btn {
+  flex: 0 0 auto;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--accent-border);
+  background: var(--accent);
+  color: var(--on-accent);
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
+  font-weight: 600;
   white-space: nowrap;
+  transition: filter 0.12s ease;
 }
 
-.fleet-board__launch button:hover:not(:disabled) {
-  background: #f3f4f6;
+.fleet-board__launch-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
 }
 
-.fleet-board__launch button:disabled {
-  opacity: 0.5;
+.fleet-board__launch-btn:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .fleet-board__launch-error {
-  color: #b91c1c;
-  font-size: 0.8rem;
+  color: var(--status-error);
+  font-size: var(--text-xs);
 }
 
 .fleet-board__error {
-  padding: 0.5rem 0.75rem;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  background: #fef2f2;
-  color: #b91c1c;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  background: var(--status-error-dim);
+  color: var(--status-error);
+  border: 1px solid color-mix(in srgb, var(--status-error) 35%, transparent);
 }
 
 .fleet-board {
@@ -58,11 +53,11 @@
   flex: 1;
   min-height: 400px;
   overflow: auto;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  background: #fafafa;
-  background-image: radial-gradient(circle, #e5e7eb 1px, transparent 1px);
-  background-size: 24px 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-inset);
+  background-image: radial-gradient(circle, var(--border-strong) 1px, transparent 1px);
+  background-size: 22px 22px;
 }
 
 .fleet-board__empty {
@@ -70,77 +65,91 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  color: #999;
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
 }
 
 .fleet-tile {
   position: absolute;
-  width: 196px;
-  min-height: 88px;
-  padding: 0.55rem 0.7rem;
-  border-radius: 8px;
-  border: 1px solid #ddd;
-  background: white;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  width: 200px;
+  min-height: 92px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
   cursor: grab;
   touch-action: none;
   user-select: none;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease, transform 0.08s ease;
+}
+
+.fleet-tile:hover {
+  border-color: var(--border-strong);
 }
 
 .fleet-tile--dragging {
   cursor: grabbing;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-lg);
+  transform: scale(1.02);
 }
 
 .fleet-tile--drop-target {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.3);
+  border-color: var(--accent);
+  border-style: dashed;
+  box-shadow: 0 0 0 3px var(--accent-dim);
 }
 
 .fleet-tile--selected {
-  border-color: #2563eb;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
 }
 
 .fleet-tile--offline {
-  opacity: 0.55;
+  opacity: 0.5;
 }
 
 .fleet-tile__header {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: var(--space-2);
 }
 
 .fleet-tile__status-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   flex: 0 0 auto;
+  background: currentColor;
+}
+
+.fleet-tile__status-dot--pulse {
+  animation: beacon-pulse 1.8s ease-out infinite;
 }
 
 .fleet-tile__status-dot--busy {
-  background: #2563eb;
+  color: var(--status-busy);
 }
 
 .fleet-tile__status-dot--waiting {
-  background: #f59e0b;
+  color: var(--status-waiting);
 }
 
 .fleet-tile__status-dot--idle {
-  background: #16a34a;
+  color: var(--status-idle);
 }
 
 .fleet-tile__status-dot--shell {
-  background: #a855f7;
+  color: var(--status-shell);
 }
 
 .fleet-tile__status-dot--unknown {
-  background: #9ca3af;
+  color: var(--status-offline);
 }
 
 .fleet-tile__name {
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -148,57 +157,66 @@
 
 .fleet-tile__badge {
   font-size: 0.65rem;
-  color: #92400e;
-  background: #fffbeb;
-  border: 1px solid #fbbf24;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--status-error);
+  background: var(--status-error-dim);
+  border: 1px solid color-mix(in srgb, var(--status-error) 35%, transparent);
   border-radius: 4px;
-  padding: 0 0.3rem;
+  padding: 0 5px;
   flex: 0 0 auto;
 }
 
 .fleet-tile__cwd {
-  margin-top: 0.25rem;
-  font-size: 0.75rem;
-  color: #666;
-  font-family: monospace;
+  margin-top: var(--space-1);
+  font-size: var(--text-2xs);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .fleet-tile__meta {
-  margin-top: 0.35rem;
+  margin-top: var(--space-2);
   display: flex;
-  gap: 0.5rem;
-  font-size: 0.7rem;
-  color: #888;
+  gap: var(--space-2);
+  font-size: 0.65rem;
+  color: var(--text-tertiary);
   text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .fleet-tile__children {
-  margin-top: 0.5rem;
-  padding-top: 0.4rem;
-  border-top: 1px dashed #ddd;
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  padding-left: var(--space-2);
+  border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 3px;
 }
 
 .fleet-tile-nested {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.25rem 0.4rem;
-  border-radius: 5px;
-  background: #f3f4f6;
+  gap: var(--space-2);
+  padding: 3px var(--space-2);
+  border-radius: 4px;
+  background: var(--surface-hover);
   cursor: grab;
   touch-action: none;
   user-select: none;
-  font-size: 0.75rem;
+  font-size: var(--text-2xs);
+}
+
+.fleet-tile-nested:hover {
+  background: var(--surface-active);
 }
 
 .fleet-tile-nested--offline {
-  opacity: 0.55;
+  opacity: 0.5;
 }
 
 .fleet-tile-nested__name {

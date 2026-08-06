@@ -4,7 +4,10 @@ import { CSS } from "@dnd-kit/utilities";
 import { useSessions, type DiscoveredSession, type SessionStatus } from "../hooks/useSessions.js";
 import type { AgentSummary } from "../hooks/useAgents.js";
 import { useLayout } from "../hooks/useLayout.js";
+import { PathPicker } from "../components/PathPicker.js";
 import "./FleetBoard.css";
+
+const PULSE_STATUSES = new Set<SessionStatus>(["busy", "waiting"]);
 
 const BOARD_DROPPABLE_ID = "__board__";
 const GRID_COL_WIDTH = 216;
@@ -155,15 +158,15 @@ export function FleetBoard({ agents, launch, selectedSessionId, onSelect }: Flee
   return (
     <div className="fleet-board-wrap">
       <div className="fleet-board__launch">
-        <input
+        <PathPicker
           value={launchCwd}
-          onChange={(e) => setLaunchCwd(e.target.value)}
+          onChange={setLaunchCwd}
           placeholder="Absolute path to launch an agent in…"
           onKeyDown={(e) => {
             if (e.key === "Enter") void handleLaunch();
           }}
         />
-        <button onClick={() => void handleLaunch()} disabled={launching || !launchCwd.trim()}>
+        <button className="fleet-board__launch-btn" onClick={() => void handleLaunch()} disabled={launching || !launchCwd.trim()}>
           {launching ? "Launching…" : "Launch agent"}
         </button>
         {launchError && <span className="fleet-board__launch-error">{launchError}</span>}
@@ -247,7 +250,9 @@ function Tile({ tileId, session, position, childIds, sessionById, selected, onSe
       {...attributes}
     >
       <div className="fleet-tile__header">
-        <span className={`fleet-tile__status-dot fleet-tile__status-dot--${status}`} />
+        <span
+          className={`fleet-tile__status-dot fleet-tile__status-dot--${status}${PULSE_STATUSES.has(status) ? " fleet-tile__status-dot--pulse" : ""}`}
+        />
         <span className="fleet-tile__name">{session?.name ?? tileId.slice(0, 8)}</span>
         {!alive && <span className="fleet-tile__badge">offline</span>}
       </div>

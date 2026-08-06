@@ -77,6 +77,8 @@ export function SessionDetail({ agentId, sessionId }: SessionDetailProps) {
   const [promptText, setPromptText] = useState("");
   const [sending, setSending] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [adopting, setAdopting] = useState(false);
+  const [adopted, setAdopted] = useState(false);
 
   const offsetRef = useRef(0);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
@@ -117,6 +119,7 @@ export function SessionDetail({ agentId, sessionId }: SessionDetailProps) {
     setEntries([]);
     setTranscriptError(null);
     offsetRef.current = 0;
+    setAdopted(false);
   }, [sessionId]);
 
   useEffect(() => {
@@ -208,6 +211,27 @@ export function SessionDetail({ agentId, sessionId }: SessionDetailProps) {
     if (!res.ok) setActionError(`Kill failed (${res.status})`);
   }, [agentId]);
 
+  const adopt = useCallback(async () => {
+    if (!sessionId) return;
+    setAdopting(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/adopt`, { method: "POST" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setActionError(body.error ?? `Adopt failed (${res.status})`);
+        return;
+      }
+      // The resumed session's own sessionId/agentId link shows up once its
+      // system/init message arrives — that's the parent's useAgents() poll
+      // (~2s), not something to hand-wire here. This just confirms the
+      // stop+resume happened so the interrupted-work warning makes sense.
+      setAdopted(true);
+    } finally {
+      setAdopting(false);
+    }
+  }, [sessionId]);
+
   const resolvePermission = useCallback(
     async (requestId: string, choice: PermissionChoice) => {
       if (!agentId) return;
@@ -231,6 +255,23 @@ export function SessionDetail({ agentId, sessionId }: SessionDetailProps) {
 
   return (
     <div className="session-detail">
+      {sessionId && !agentId && !adopted && (
+        <div className="banner banner--info adopt-banner">
+          <span>Read-only — this session isn't owned by Beacon.</span>
+          <button
+            onClick={() => {
+              if (window.confirm("Adopt this session? This stops the running process and resumes it under Beacon, interrupting any in-flight work.")) {
+                void adopt();
+              }
+            }}
+            disabled={adopting}
+          >
+            {adopting ? "Adopting…" : "Adopt"}
+          </button>
+        </div>
+      )}
+      {adopted && <div className="banner banner--info">Adopted — control should appear here shortly.</div>}
+
       {permissionRequests.length > 0 && (
         <div className="permission-cards">
           {permissionRequests.map((req) => (

@@ -2,162 +2,243 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  gap: 0.75rem;
-  font-family: system-ui, sans-serif;
+  width: 100%;
+  gap: var(--space-3);
+  font-family: var(--font-ui);
+  min-width: 0;
 }
 
 .session-detail--empty {
-  color: #888;
-  padding: 2rem;
+  color: var(--text-tertiary);
+  padding: var(--space-6);
   text-align: center;
+  font-size: var(--text-sm);
+  margin: auto;
 }
 
 .transcript {
   flex: 1;
   overflow-y: auto;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 0.5rem 0.75rem;
-  background: #fafafa;
-  min-height: 200px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
+  background: var(--bg-inset);
+  min-height: 160px;
 }
 
 .transcript__hint {
-  color: #999;
-  padding: 1rem;
+  color: var(--text-tertiary);
+  padding: var(--space-4);
+  font-size: var(--text-sm);
 }
 
 .transcript-entry {
   display: flex;
-  gap: 0.5rem;
-  padding: 0.3rem 0;
-  border-bottom: 1px solid #eee;
-  font-size: 0.9rem;
-  line-height: 1.4;
+  gap: var(--space-2);
+  align-items: flex-start;
+  padding: 3px var(--space-1);
+  border-radius: 4px;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.transcript-entry:hover {
+  background: var(--surface-hover);
 }
 
 .transcript-entry__role {
   flex: 0 0 auto;
   font-weight: 600;
   text-transform: uppercase;
-  font-size: 0.7rem;
-  color: #666;
-  padding-top: 0.15rem;
-  min-width: 4.5rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.03em;
+  color: var(--text-tertiary);
+  background: var(--surface-active);
+  border-radius: 4px;
+  padding: 2px 6px;
+  margin-top: 1px;
+  min-width: 4.2rem;
+  text-align: center;
 }
 
 .transcript-entry__preview {
   white-space: pre-wrap;
   word-break: break-word;
+  color: var(--text-secondary);
+  padding-top: 2px;
 }
 
 .transcript-entry--user .transcript-entry__role {
-  color: #2563eb;
+  color: var(--status-busy);
+  background: color-mix(in srgb, var(--status-busy) 16%, transparent);
+}
+
+.transcript-entry--user .transcript-entry__preview {
+  color: var(--text);
 }
 
 .transcript-entry--assistant .transcript-entry__role {
-  color: #16a34a;
+  color: var(--status-idle);
+  background: color-mix(in srgb, var(--status-idle) 16%, transparent);
 }
 
 .transcript-entry--system .transcript-entry__role {
-  color: #a855f7;
+  color: var(--status-shell);
+  background: color-mix(in srgb, var(--status-shell) 16%, transparent);
+}
+
+.transcript-entry--attachment .transcript-entry__role,
+.transcript-entry--other .transcript-entry__role {
+  color: var(--text-tertiary);
 }
 
 .transcript-entry--error {
-  background: #fef2f2;
+  background: var(--status-error-dim);
+}
+
+.transcript-entry--error .transcript-entry__preview {
+  color: var(--status-error);
 }
 
 .banner {
-  padding: 0.5rem 0.75rem;
-  border-radius: 6px;
-  font-size: 0.85rem;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  border: 1px solid transparent;
 }
 
 .banner--error {
-  background: #fef2f2;
-  color: #b91c1c;
+  background: var(--status-error-dim);
+  color: var(--status-error);
+  border-color: color-mix(in srgb, var(--status-error) 35%, transparent);
 }
 
 .banner--info {
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: var(--accent-border);
+}
+
+.adopt-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.adopt-banner button {
+  flex: 0 0 auto;
 }
 
 .permission-cards {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 .permission-card {
-  border: 1px solid #fbbf24;
-  background: #fffbeb;
-  border-radius: 8px;
-  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--accent-border);
+  border-left: 3px solid var(--accent);
+  background: var(--accent-dim);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
 }
 
 .permission-card__title {
   font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--text);
 }
 
 .permission-card__desc {
-  color: #555;
-  font-size: 0.85rem;
-  margin-top: 0.15rem;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  margin-top: 2px;
 }
 
 .permission-card__tool {
-  font-family: monospace;
-  font-size: 0.8rem;
-  color: #92400e;
-  margin-top: 0.3rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--accent);
+  margin-top: var(--space-2);
 }
 
 .permission-card__actions {
   display: flex;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 
 .controls {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-2);
+  flex: 0 0 auto;
 }
 
 .controls textarea {
   resize: vertical;
-  min-height: 3rem;
-  padding: 0.5rem;
-  border-radius: 6px;
-  border: 1px solid #ccc;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-inset);
+  color: var(--text);
   font-family: inherit;
+  font-size: var(--text-sm);
+}
+
+.controls textarea:focus {
+  border-color: var(--accent-border);
+}
+
+.controls textarea::placeholder {
+  color: var(--text-tertiary);
 }
 
 .controls__buttons {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
-button {
-  padding: 0.4rem 0.9rem;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-  background: white;
+.session-detail button {
+  padding: 6px var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
+  font-weight: 500;
 }
 
-button:hover:not(:disabled) {
-  background: #f3f4f6;
+.session-detail button:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
 }
 
-button:disabled {
-  opacity: 0.5;
+.session-detail button:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
-button.deny {
-  color: #b91c1c;
-  border-color: #fca5a5;
+.session-detail .controls__buttons button:first-child {
+  background: var(--accent);
+  border-color: var(--accent-border);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.session-detail .controls__buttons button:first-child:hover:not(:disabled) {
+  filter: brightness(1.08);
+  background: var(--accent);
+}
+
+.session-detail button.deny {
+  color: var(--status-error);
+  border-color: color-mix(in srgb, var(--status-error) 40%, transparent);
+}
+
+.session-detail button.deny:hover:not(:disabled) {
+  background: var(--status-error-dim);
 }
