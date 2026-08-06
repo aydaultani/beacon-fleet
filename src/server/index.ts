@@ -35,15 +35,15 @@ export async function startServer({ port, host }: StartServerOptions): Promise<S
   await discovery.start();
   app.addHook("onClose", async () => discovery.stop());
 
-  const supervisor = new SupervisorManager();
-  app.addHook("onClose", async () => {
-    for (const session of supervisor.list()) session.kill();
-  });
-
   const db = openDatabase();
   app.addHook("onClose", async () => db.close());
   const tickets = new SqliteTicketsCore(db);
   const layout = new SqliteLayoutStore(db);
+
+  const supervisor = new SupervisorManager(tickets);
+  app.addHook("onClose", async () => {
+    for (const session of supervisor.list()) session.kill();
+  });
 
   app.get("/api/health", async () => ({ ok: true }));
   app.get("/api/sessions", async () => discovery.list());

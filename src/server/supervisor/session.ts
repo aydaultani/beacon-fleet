@@ -1,4 +1,11 @@
-import { query, type Options, type Query, type SDKMessage, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
+import {
+  query,
+  type McpSdkServerConfigWithInstance,
+  type Options,
+  type Query,
+  type SDKMessage,
+  type SDKUserMessage,
+} from "@anthropic-ai/claude-agent-sdk";
 import { PushQueue } from "./queue.js";
 import { PermissionBridge, type PendingPermissionRequest, type PermissionChoice } from "./permissions.js";
 
@@ -9,6 +16,9 @@ export interface BeaconSessionOptions {
   resume?: string;
   model?: string;
   claudeExecutable?: string;
+  /** In-process ticket-tool MCP server (see mcp/sdk-server.ts). Optional so
+   * tests can construct a BeaconSession without a real TicketsCore. */
+  mcpServer?: McpSdkServerConfigWithInstance;
 }
 
 export type BeaconSessionEvent =
@@ -56,6 +66,7 @@ export class BeaconSession {
       stderr: (data) => console.error(`[beacon session ${id}]`, data.trimEnd()),
     };
     if (opts.claudeExecutable) options.pathToClaudeCodeExecutable = opts.claudeExecutable;
+    if (opts.mcpServer) options.mcpServers = { beacon: opts.mcpServer };
 
     this.q = query({ prompt: this.inbox, options });
     void this.pump();

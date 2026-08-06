@@ -200,15 +200,23 @@ export function SessionDetail({ agentId, sessionId }: SessionDetailProps) {
   const interrupt = useCallback(async () => {
     if (!agentId) return;
     setActionError(null);
-    const res = await fetch(`/api/agents/${agentId}/interrupt`, { method: "POST" });
-    if (!res.ok) setActionError(`Interrupt failed (${res.status})`);
+    try {
+      const res = await fetch(`/api/agents/${agentId}/interrupt`, { method: "POST" });
+      if (!res.ok) setActionError(`Interrupt failed (${res.status})`);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    }
   }, [agentId]);
 
   const kill = useCallback(async () => {
     if (!agentId) return;
     setActionError(null);
-    const res = await fetch(`/api/agents/${agentId}/kill`, { method: "POST" });
-    if (!res.ok) setActionError(`Kill failed (${res.status})`);
+    try {
+      const res = await fetch(`/api/agents/${agentId}/kill`, { method: "POST" });
+      if (!res.ok) setActionError(`Kill failed (${res.status})`);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    }
   }, [agentId]);
 
   const adopt = useCallback(async () => {
@@ -227,6 +235,8 @@ export function SessionDetail({ agentId, sessionId }: SessionDetailProps) {
       // (~2s), not something to hand-wire here. This just confirms the
       // stop+resume happened so the interrupted-work warning makes sense.
       setAdopted(true);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
     } finally {
       setAdopting(false);
     }
@@ -235,15 +245,19 @@ export function SessionDetail({ agentId, sessionId }: SessionDetailProps) {
   const resolvePermission = useCallback(
     async (requestId: string, choice: PermissionChoice) => {
       if (!agentId) return;
-      const res = await fetch(`/api/agents/${agentId}/permissions/${requestId}`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ choice }),
-      });
-      if (res.ok) {
-        setPermissionRequests((prev) => prev.filter((r) => r.id !== requestId));
-      } else {
-        setActionError(`Permission response failed (${res.status})`);
+      try {
+        const res = await fetch(`/api/agents/${agentId}/permissions/${requestId}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ choice }),
+        });
+        if (res.ok) {
+          setPermissionRequests((prev) => prev.filter((r) => r.id !== requestId));
+        } else {
+          setActionError(`Permission response failed (${res.status})`);
+        }
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : String(err));
       }
     },
     [agentId],

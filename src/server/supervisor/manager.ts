@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { isPidAlive, verifyProcStart } from "../discovery/liveness.js";
+import { createBeaconSdkMcpServer } from "../mcp/sdk-server.js";
+import type { TicketsCore } from "../mcp/tickets-contract.js";
 import { BeaconSession, type BeaconSessionEvent } from "./session.js";
 
 export interface LaunchOptions {
@@ -25,9 +27,17 @@ export class SupervisorManager {
 
   onEvent?: (beaconSessionId: string, event: BeaconSessionEvent) => void;
 
+  /** Optional: when set, every launched/adopted session gets the in-process
+   * ticket-tool MCP server wired in automatically (see mcp/sdk-server.ts).
+   * A fresh server config is created per session rather than shared, since
+   * each is just a lightweight tool-definition wrapper, not a persistent
+   * connection. */
+  constructor(private readonly tickets?: TicketsCore) {}
+
   launch(opts: LaunchOptions): BeaconSession {
     const id = randomUUID();
-    const session = new BeaconSession(id, opts);
+    const mcpServer = this.tickets ? createBeaconSdkMcpServer(this.tickets) : undefined;
+    const session = new BeaconSession(id, { ...opts, mcpServer });
     session.onEvent = (event) => this.onEvent?.(id, event);
     this.sessions.set(id, session);
     return session;
