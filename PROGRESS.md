@@ -8,6 +8,28 @@ the table below since this file can lag actual commits.
 
 Plan file (original design doc): `~/.claude/plans/purrfect-noodling-whisper.md`
 
+## Visual identity, take two: terminal/TUI (2026-08-06)
+
+The first design pass (soft dark panels, pill status chips, rounded cards,
+dot-grid canvas) landed in `3ea8a74` but the user hated it on sight. Asked
+directly, the reference point was **k9s/lazygit-style terminal dashboards**,
+with explicit license to restructure, not just re-skin.
+
+Reworked in `acd5cde`: single monospace face everywhere, `radius: 0`,
+near-black canvas, an ANSI-style status palette (`--ansi-{green,yellow,
+blue,magenta,red,gray}` in `theme.css`), and bracket-tag text (`[BUSY]`,
+`[OFFLINE]`, `[USER]`) as the one recurring structural device instead of
+soft chips. Amber (`--accent`) is still the single deliberate accent and
+still doubles as the "waiting" status — that overlap was intentional in
+the first pass and survived the rewrite because the logic still holds.
+
+**If you're about to touch web/ styling:** the identity is now
+monospace-only / sharp-cornered / terminal-vocabulary. Don't reintroduce
+rounded corners, pill-shaped chips, or a second UI font — that's the exact
+thing that got rejected. `web/src/theme.css` is the single source of truth
+for tokens; everything else should style through `var(--...)`, not
+hardcoded colors.
+
 ## Task status — 10 of 10 done
 
 All ten tasks from the original plan are built, wired together, and verified
