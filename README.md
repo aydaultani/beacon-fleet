@@ -8,7 +8,7 @@ system your agents can write to themselves.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D22.5.0-339933?logo=node.js&logoColor=white)](https://nodejs.org)
-[![Status](https://img.shields.io/badge/status-v1%20working%2C%20unreleased-brightgreen)](#status)
+[![Status](https://img.shields.io/badge/status-in%20testing%2C%20not%20released-yellow)](#status)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
 
 ## What is this?
@@ -82,27 +82,33 @@ in-flight work), not a silent hijack.
 
 ## Status
 
-v1 is built and working — every piece below is verified against real behavior (real
-launched agents, a real external MCP client, real SQLite writes, a real browser pass),
-not just typechecked. Not yet published to npm.
+**Not released. Actively in testing, with real bugs still being found and fixed as it
+gets exercised end to end.** Every piece below has been implemented and has worked in at
+least one real, hands-on test pass (real launched agents, a real external MCP client,
+real SQLite writes, a real browser session) — that's a higher bar than "typechecks," but
+it is not the same thing as "stable" or "release-ready." Treat anything in this repo as
+a working prototype you're trying, not a finished product. It has not been cut as a
+release and isn't published to npm; that only happens with explicit sign-off, not
+automatically as pieces land.
 
 | Piece | State |
 | --- | --- |
-| HTTP server, loopback-only bind, bearer-token gate for non-loopback | done |
-| Session discovery (`fs.watch` + periodic `claude agents --json --all` reconcile) | done |
-| Transcript reader (history + incremental live tail) | done |
-| Owned-agent supervisor (Agent SDK push-queue sessions) | done |
-| Adopt-via-resume (take control of an external session) | done |
-| Ticket system (SQLite via `node:sqlite`, MCP-exposed) | done |
-| MCP endpoints (standalone HTTP `/mcp` + in-process, both surfaces) | done |
-| Fleet board (draggable/nestable session tiles, real-time over WebSocket) | done |
-| Session detail (live transcript, prompt/interrupt/kill, permission cards, adopt) | done |
-| Ticket board (kanban view over the ticket system) | done |
-| CSP headers | not yet — tracked, see [Security](#security) |
+| HTTP server, loopback-only bind, bearer-token gate for non-loopback | implemented |
+| Session discovery (`fs.watch` + periodic `claude agents --json --all` reconcile) | implemented |
+| Transcript reader (history + incremental live tail) | implemented |
+| Owned-agent supervisor (Agent SDK push-queue sessions) | implemented |
+| Adopt-via-resume (take control of an external session) | implemented |
+| Ticket system (SQLite via `node:sqlite`, MCP-exposed) | implemented |
+| MCP endpoints (standalone HTTP `/mcp` + in-process, both surfaces) | implemented |
+| Fleet board (draggable/nestable session tiles, real-time over WebSocket) | implemented |
+| Session detail (live transcript, prompt/interrupt/kill, permission cards, adopt) | implemented |
+| Ticket board (kanban view over the ticket system) | implemented |
+| CSP headers | not started |
 
-The live, blow-by-blow status board (including real bugs found and fixed along the way)
-is `PROGRESS.md` in the repo root — more detail than belongs in a README, kept current
-as the project moves.
+"Implemented" means built and exercised at least once, not bug-free — see `PROGRESS.md`
+in the repo root for the live, unvarnished status: what's actually been tested, what
+broke and got fixed, and what's still suspect. Trust that file over this README, and
+trust neither over actually running it yourself.
 
 ## Architecture
 
@@ -234,9 +240,9 @@ Useful things to know before sending a PR:
   the loopback default or logs transcript content wholesale won't be merged as-is.
 - Run `pnpm typecheck` and `pnpm test` before opening a PR; both run clean on `main`.
 
-The server side has solid test coverage (86 tests, `node --test`); the web UI is
-currently verified by hand in a real browser rather than automated tests — that's the
-biggest open gap if you're looking for something concrete to pick up.
+The server side has automated test coverage (86 tests, `node --test`); the web UI has
+none yet, only manual browser passes — that's a real gap, not a formality, and a good
+place to start if you want to help find what's still broken.
 
 Issues and PRs welcome, small and focused ones especially.
 

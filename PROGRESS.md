@@ -30,12 +30,17 @@ thing that got rejected. `web/src/theme.css` is the single source of truth
 for tokens; everything else should style through `var(--...)`, not
 hardcoded colors.
 
-## Task status — 10 of 10 done
+## Task status — all 10 implemented, still in testing
 
-All ten tasks from the original plan are built, wired together, and verified
-against real behavior — real launched agents, a real external MCP client,
-real SQLite writes, real HTTP round-trips, a real browser pass against the
-production build. Not just typechecked.
+**Not released, not stable.** All ten tasks from the original plan have been
+built, wired together, and each has worked in at least one real test pass —
+real launched agents, a real external MCP client, real SQLite writes, real
+HTTP round-trips, a real browser pass. That is a higher bar than "typechecks,"
+but do not read "implemented" as "done" — real bugs have kept surfacing after
+each "verified" pass (see the bug list below, which keeps growing), and the
+web UI in particular has no automated tests, only manual spot checks. Treat
+this as a working prototype under active bug-fixing, not a finished product.
+Release status changes only with the user's explicit sign-off.
 
 | # | Task |
 |---|------|
@@ -133,7 +138,7 @@ instead. Separately: never click a button wired to `window.confirm()`
 directly in an automated browser session (it blocks the tab) — stub
 `window.confirm = () => true` via `javascript_tool` first.
 
-## Possible follow-ups (v1 is done; these are polish, not blockers)
+## Possible follow-ups (beyond the original 10 tasks — not a "we're basically done" list)
 
 - Fleet board free-positioned tiles can visually overlap when a parent tile
   grows taller after gaining nested children — cosmetic, drag it away.
