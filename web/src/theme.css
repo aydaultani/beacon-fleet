@@ -162,6 +162,26 @@ textarea {
   opacity: 0.55;
 }
 
+.panel-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--space-1);
+}
+
+.panel-header__tag {
+  color: var(--accent);
+}
+
+.panel-header__count {
+  font-size: var(--text-2xs);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
 @keyframes term-blink {
   0%,
   60% {

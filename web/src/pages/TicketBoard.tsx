@@ -38,6 +38,13 @@ export function TicketBoard() {
 
   return (
     <div className="ticket-board-wrap">
+      <div className="panel-header">
+        <span className="tag panel-header__tag">Tickets</span>
+        <span className="panel-header__count">
+          {tickets.length} ticket{tickets.length === 1 ? "" : "s"}
+        </span>
+      </div>
+
       <div className="ticket-board__new">
         <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ticket title…" />
         <input value={project} onChange={(e) => setProject(e.target.value)} placeholder="Project (absolute path)…" />
@@ -85,7 +92,10 @@ function TicketCard({
 }) {
   return (
     <div className={`ticket-card ticket-card--${ticket.priority}`}>
-      <div className="ticket-card__title">{ticket.title}</div>
+      <div className="ticket-card__title-row">
+        <span className="tag ticket-card__priority-tag">{ticket.priority}</span>
+        <div className="ticket-card__title">{ticket.title}</div>
+      </div>
       <div className="ticket-card__project">{ticket.project}</div>
       {ticket.body && <div className="ticket-card__body">{ticket.body}</div>}
       <div className="ticket-card__row">

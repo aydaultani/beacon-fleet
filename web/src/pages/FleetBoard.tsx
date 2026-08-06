@@ -157,6 +157,13 @@ export function FleetBoard({ agents, launch, selectedSessionId, onSelect }: Flee
 
   return (
     <div className="fleet-board-wrap">
+      <div className="panel-header">
+        <span className="tag panel-header__tag">Fleet</span>
+        <span className="panel-header__count">
+          {tileIds.length} session{tileIds.length === 1 ? "" : "s"}
+        </span>
+      </div>
+
       <div className="fleet-board__launch">
         <PathPicker
           value={launchCwd}
