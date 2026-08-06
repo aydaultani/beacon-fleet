@@ -20,42 +20,71 @@ export interface DiscoveredSession {
   reconciled: boolean;
 }
 
-const POLL_INTERVAL_MS = 2000;
+type WsInboundMessage = { type: "sessions"; sessions: DiscoveredSession[] } | { type: "agent-event" };
 
-/** Polls GET /api/sessions. Real-time push over /ws lands here once the
- * WebSocket hub's "sessions" message type is wired into the UI layer —
- * for now this matches SessionDetail's established polling pattern. */
+const RECONNECT_DELAY_MS = 2000;
+
+function wsUrl(): string {
+  const proto = window.location.protocol === "https:" ? "wss" : "ws";
+  return `${proto}://${window.location.host}/ws`;
+}
+
+/**
+ * Live session list pushed over /ws (the hub sends a "sessions" snapshot
+ * immediately on connect, then again on every discovery update — as fast
+ * as fs.watch fires server-side, not capped at a poll interval). An
+ * initial GET /api/sessions covers first paint while the socket is still
+ * connecting; reconnects with a fixed backoff on drop, matching
+ * SessionDetail's established WS pattern.
+ */
 export function useSessions(): { sessions: DiscoveredSession[]; error: string | null } {
   const [sessions, setSessions] = useState<DiscoveredSession[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const fetchingRef = useRef(false);
+  const gotFirstMessageRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    const poll = async () => {
-      if (fetchingRef.current) return;
-      fetchingRef.current = true;
-      try {
-        const res = await fetch("/api/sessions");
-        if (!res.ok) throw new Error(`Failed to list sessions (${res.status})`);
-        const body: DiscoveredSession[] = await res.json();
-        if (!cancelled) {
-          setSessions(body);
-          setError(null);
-        }
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        fetchingRef.current = false;
-      }
-    };
+    fetch("/api/sessions")
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`Failed to list sessions (${res.status})`))))
+      .then((body: DiscoveredSession[]) => {
+        // Only use this if the socket hasn't already delivered a fresher
+        // snapshot — avoids the initial fetch clobbering a newer WS push
+        // that can legitimately arrive first on a fast local connection.
+        if (!cancelled && !gotFirstMessageRef.current) setSessions(body);
+      })
+      .catch((err) => {
+        if (!cancelled && !gotFirstMessageRef.current) setError(err instanceof Error ? err.message : String(err));
+      });
 
-    void poll();
-    const timer = window.setInterval(() => void poll(), POLL_INTERVAL_MS);
+    let socket: WebSocket | null = null;
+    let reconnectTimer: number | undefined;
+
+    const connect = () => {
+      if (cancelled) return;
+      socket = new WebSocket(wsUrl());
+      socket.onmessage = (ev) => {
+        let msg: WsInboundMessage;
+        try {
+          msg = JSON.parse(ev.data);
+        } catch {
+          return;
+        }
+        if (msg.type !== "sessions") return;
+        gotFirstMessageRef.current = true;
+        setSessions(msg.sessions);
+        setError(null);
+      };
+      socket.onclose = () => {
+        if (!cancelled) reconnectTimer = window.setTimeout(connect, RECONNECT_DELAY_MS);
+      };
+    };
+    connect();
+
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      if (reconnectTimer) window.clearTimeout(reconnectTimer);
+      socket?.close();
     };
   }, []);
 
