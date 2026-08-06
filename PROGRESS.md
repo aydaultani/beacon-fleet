@@ -46,6 +46,9 @@ This boots a real server that:
 - Adopts an external session via `POST /api/sessions/:sessionId/adopt`
 - Pushes all of the above live over `ws://.../ws`
 - Serves the (currently placeholder) built web app at `/`
+- Shuts down cleanly on Ctrl+C (stops file watchers, kills owned agents,
+  exits 0) and opens the dashboard in your browser automatically
+  (`--no-open` to skip)
 
 ## Immediate next steps, in order
 
