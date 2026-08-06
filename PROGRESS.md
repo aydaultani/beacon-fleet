@@ -137,12 +137,15 @@ directly in an automated browser session (it blocks the tab) — stub
 
 - Fleet board free-positioned tiles can visually overlap when a parent tile
   grows taller after gaining nested children — cosmetic, drag it away.
-- Real-time push for the fleet board list itself still polls (2s) rather
-  than using the `/ws` "sessions" message type the hub already sends —
-  works fine, just not maximally live.
 - No tests yet for the new `web/` components (TicketBoard, PathPicker,
   adopt flow) beyond manual browser verification — the server side has 86
   passing tests, the web side has none. Worth adding if this grows further.
+
+Done since the list above was written: the fleet board is now real-time
+over `/ws` instead of polling (`useSessions.ts` connects directly, matching
+SessionDetail's reconnect-with-backoff pattern) — verified by launching a
+real `claude --bg` session and watching it appear with zero extra
+`/api/sessions` requests.
 
 ## Notes on how this repo is being built
 
