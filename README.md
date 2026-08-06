@@ -34,6 +34,28 @@ Beacon is a local web dashboard that fixes that:
 Everything runs locally. Nothing leaves your machine unless you explicitly bind it
 somewhere else (see [Security](#security)).
 
+## Ask an LLM about this repo
+
+If you'd rather have an LLM walk you through the project than read the rest of this
+file, clone the repo, point a coding assistant (Claude Code, Cursor, etc.) at it, and
+try one of these:
+
+- "Read README.md and CLAUDE.md in this repo and explain what Beacon does, in plain
+  terms, to someone who has never used Claude Code."
+- "What's the difference between a 'discovered' and an 'owned' agent in Beacon, and why
+  does that distinction exist?"
+- "Walk me through Beacon's architecture: what's built, what's planned, and how the
+  pieces in src/server are supposed to fit together."
+- "Why does Beacon refuse to speak Claude Code's private daemon control-socket protocol,
+  and what does it do instead?"
+- "I want to add a feature to Beacon. Based on CLAUDE.md, what traps should I watch out
+  for around session discovery, transcripts, or token usage?"
+- "Summarize Beacon's security posture: what does it bind to by default, what does it
+  refuse to log, and what's still on the roadmap?"
+
+These work well because `CLAUDE.md` carries the verified, low-level detail (on-disk
+layout, Agent SDK gotchas, traps) that this README intentionally keeps out.
+
 ## Why it exists (and what it deliberately isn't)
 
 Claude Code already ships `claude agents`, a built-in TUI with dispatch/peek/reply/stop
