@@ -8,27 +8,46 @@ the table below since this file can lag actual commits.
 
 Plan file (original design doc): `~/.claude/plans/purrfect-noodling-whisper.md`
 
-## Visual identity, take two: terminal/TUI (2026-08-06)
+## Visual identity, take three — and a structural rebuild (2026-08-06, ~21:00)
 
-The first design pass (soft dark panels, pill status chips, rounded cards,
-dot-grid canvas) landed in `3ea8a74` but the user hated it on sight. Asked
-directly, the reference point was **k9s/lazygit-style terminal dashboards**,
-with explicit license to restructure, not just re-skin.
+**STOP building on the current `theme.css` tokens / TUI look. It's rejected
+too.** Timeline so far, so nobody repeats a rejected direction a third time:
 
-Reworked in `acd5cde`: single monospace face everywhere, `radius: 0`,
-near-black canvas, an ANSI-style status palette (`--ansi-{green,yellow,
-blue,magenta,red,gray}` in `theme.css`), and bracket-tag text (`[BUSY]`,
-`[OFFLINE]`, `[USER]`) as the one recurring structural device instead of
-soft chips. Amber (`--accent`) is still the single deliberate accent and
-still doubles as the "waiting" status — that overlap was intentional in
-the first pass and survived the rewrite because the logic still holds.
+1. Pass one (`3ea8a74`): soft dark panels, pill chips, rounded cards,
+   dot-grid canvas. User hated it on sight.
+2. Pass two (`acd5cde`): asked for a reference, got "k9s/lazygit-style
+   terminal dashboard" — rebuilt as monospace-everywhere, `radius: 0`,
+   bracket tags (`[BUSY]`), blink animation, CRT scanline overlay.
+   **Also rejected** — "weird stuff... shabby AI slop... should look clean
+   and easy to read."
+3. Current direction (in progress now): **minimalistic, clean, fixed
+   4-region layout** — explicit ask was "what's on the left/right/up/down,
+   make everything fixed." Also a **structural** change, not just visual:
+   drop the free-drag/nest tile canvas entirely in favor of a tree/flowchart
+   of each session's real Claude Code subagents (Task-tool sub-conversations
+   — see `src/server/transcripts/subagents.ts`, new), with right-click
+   actions. Layout being built:
+   - Top: thin fixed header (brand + Fleet/Tickets).
+   - Left: fixed sidebar, flat list of top-level sessions.
+   - Center: tree/flowchart canvas — selected session as root, its real
+     subagents as children, connected by lines.
+   - Right: fixed detail panel — transcript + controls for whichever node
+     (session or subagent) is selected.
+   - Nothing pinned to the bottom by choice — panels scroll internally.
+   - Visual language: calm, minimal, one legible UI font + monospace
+     reserved for real paths/ids/code only — no brackets, no blink, no
+     scanlines, no heavy borders. Small radius (~6px) is fine; the point is
+     restraint and legibility, not another stylistic bit.
 
-**If you're about to touch web/ styling:** the identity is now
-monospace-only / sharp-cornered / terminal-vocabulary. Don't reintroduce
-rounded corners, pill-shaped chips, or a second UI font — that's the exact
-thing that got rejected. `web/src/theme.css` is the single source of truth
-for tokens; everything else should style through `var(--...)`, not
-hardcoded colors.
+**Known hard constraint:** subagents can only be spawned by the model
+itself mid-turn (the Task tool) — there is no API to force-spawn one from
+outside. "Right-click → launch subagent" can only mean *send a prompt*
+nudging the session to delegate, not a direct subagent-spawn call.
+
+If you're mid-work on `FleetBoard.tsx`/`TicketBoard.tsx` styling or the
+drag/nest tile canvas right now: that structure is being replaced, not
+reskinned — worth checking `git log --oneline -5` before investing more in
+it. `web/src/theme.css` is about to be rewritten too.
 
 ## Task status — all 10 implemented, still in testing
 
