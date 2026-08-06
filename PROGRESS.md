@@ -20,8 +20,8 @@ Plan file (original design doc): `~/.claude/plans/purrfect-noodling-whisper.md`
 | 6 | MCP surfaces (`src/server/mcp/`) | **done and wired** — in-process SDK server + standalone HTTP `/mcp`, verified with a real external MCP client |
 | 7 | Agent supervisor (`src/server/supervisor/`) | done, verified against a real launched agent |
 | 8 | Fastify REST + WebSocket (`src/server/routes/`, `src/server/ws.ts`) | **done** — agents, tickets, layout routes + WS, all wired and verified |
-| 9 | React web UI (`web/`) | **in progress elsewhere** — fleet board in `web/`, session detail view in `web/src/pages/SessionDetail.tsx`. Both actively worked as of last check. |
-| 10 | End-to-end verification | not started — only remaining blocker is #9 landing |
+| 9 | React web UI (`web/`) | Session detail view **done** (`web/src/pages/SessionDetail.tsx`, transcript/prompt/interrupt/kill/permission cards, real bug fixes along the way — see its commit). Fleet board (draggable tiles, `App.tsx` wiring) **CLAIMED, in progress as of 2026-08-06 ~16:20 IST** — no prior progress found (no dnd-kit dep, no component, App.tsx still the placeholder), picking it up now since it's the last blocker. |
+| 10 | End-to-end verification | not started — depends on the fleet board landing |
 
 Also worth knowing: the npm package was renamed `beacon-hq` → `beacon-fleet`
 mid-build (npm blocked publishing `beacon-hq` as too similar to an existing
