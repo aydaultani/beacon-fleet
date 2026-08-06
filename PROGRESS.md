@@ -66,8 +66,13 @@ This boots a real server that:
 
 ## Open parallel slice (safe to hand to a new session right now)
 
-**Session detail view** — live transcript pane, prompt box, permission-
-approval cards. All the backend it needs already exists and is verified:
+**Session detail view** — CLAIMED, in progress as of 2026-08-06 ~15:30 IST
+(building `web/src/pages/SessionDetail.tsx`, not touching `App.tsx` or any
+other fleet-board file). If you're reading this and it's been a while with
+no follow-up commit, it's safe to pick back up.
+
+Live transcript pane, prompt box, permission-approval cards. All the backend
+it needs already exists and is verified:
 `GET /api/sessions/:id/transcript?offset=N`, `POST /api/agents/:id/prompt`,
 `POST /api/agents/:id/interrupt`, `POST /api/agents/:id/permissions/:requestId`,
 and the `/ws` channel (messages tagged `{type: "agent-event", agentId, event}`
