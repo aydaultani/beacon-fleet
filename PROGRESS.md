@@ -16,11 +16,11 @@ Plan file (original design doc): `~/.claude/plans/purrfect-noodling-whisper.md`
 | 2 | Repo scaffold (CLI, Fastify server, Vite/React web) | done |
 | 3 | Discovery read model (`src/server/discovery/`) | done, verified against real live sessions |
 | 4 | Transcript service (`src/server/transcripts/`) | done, verified against a real transcript |
-| 5 | SQLite + tickets-core + layout table (`src/db/`) | **in progress elsewhere — not yet pushed as of last check** |
-| 6 | MCP surfaces (`src/server/mcp/`) | done, verified with a real MCP client/server handshake |
+| 5 | SQLite + tickets-core + layout table (`src/db/`) | **CLAIMED, in progress as of 2026-08-06 ~16:10 IST** — original session assigned this went quiet with nothing pushed; picking it up now to unblock #6 wiring and #8's remaining routes. If you see a `src/db/` commit that isn't from this claim, check timestamps before assuming a collision. |
+| 6 | MCP surfaces (`src/server/mcp/`) | done, verified with a real MCP client/server handshake. Not yet wired into `src/server/index.ts` — needs #5. |
 | 7 | Agent supervisor (`src/server/supervisor/`) | done, verified against a real launched agent |
-| 8 | Fastify REST + WebSocket (`src/server/routes/`, `src/server/ws.ts`) | **core done and verified** (agents + WS). Ticket/layout routes deliberately not wired yet — blocked on #5 landing, see below |
-| 9 | React web UI (`web/`) | **in progress elsewhere — not yet pushed as of last check** |
+| 8 | Fastify REST + WebSocket (`src/server/routes/`, `src/server/ws.ts`) | **core done and verified** (agents + WS) + 47 passing tests (`pnpm test`). Ticket/layout routes deliberately not wired yet — blocked on #5, in progress now |
+| 9 | React web UI (`web/`) | **in progress elsewhere** — fleet board under `web/`, session detail view under `web/src/pages/SessionDetail.tsx` (both actively being worked as of last check — vite proxy config for `/ws` just landed) |
 | 10 | End-to-end verification | not started — depends on 5, 8 (ticket wiring), 9 |
 
 Also worth knowing: the npm package was renamed `beacon-hq` → `beacon-fleet`
