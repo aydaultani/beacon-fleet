@@ -19,6 +19,25 @@ Package name: `beacon-fleet`. Run via `npx beacon-fleet`.
 
 Design plan and rationale: `~/.claude/plans/purrfect-noodling-whisper.md`.
 
+## Start here
+
+This repo is regularly worked on by multiple Claude Code sessions at once, in
+the same working directory (not worktrees) — so before doing anything else:
+
+1. `git pull`.
+2. Read **`PROGRESS.md`** — it's the live status board: what's done and
+   verified, what's mid-flight elsewhere, and the next open, non-colliding
+   slice of work. It is kept up to date after every meaningful step; trust it
+   over your own assumptions about what exists.
+3. Pick up whatever it lists as next, or claim the open parallel slice it
+   describes. If you finish something or change direction, update
+   `PROGRESS.md` yourself before you stop — the next session (or the next
+   context-compaction of this one) depends on it being current.
+4. Since sessions share a working directory, only ever `git add` the specific
+   files your task touched — never `git add -A` — and check `git status` /
+   `git log --oneline -20` before editing a file you didn't just create, in
+   case someone else has it mid-edit.
+
 ## Why this exists / non-goals
 
 Claude Code already ships `claude agents` — a TUI with dispatch/peek/reply/stop across
