@@ -5,6 +5,9 @@ import fastifyStatic from "@fastify/static";
 import { registerAuthGate, isLoopbackHost } from "./auth.js";
 import { DiscoveryService } from "./discovery/index.js";
 import { readTranscriptSince } from "./transcripts/index.js";
+import { SupervisorManager } from "./supervisor/index.js";
+import { registerAgentRoutes } from "./routes/agents.js";
+import { registerWebSocketHub } from "./ws.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -22,8 +25,16 @@ export async function startServer({ port, host }: StartServerOptions): Promise<v
   await discovery.start();
   app.addHook("onClose", async () => discovery.stop());
 
+  const supervisor = new SupervisorManager();
+  app.addHook("onClose", async () => {
+    for (const session of supervisor.list()) session.kill();
+  });
+
   app.get("/api/health", async () => ({ ok: true }));
   app.get("/api/sessions", async () => discovery.list());
+
+  registerAgentRoutes(app, discovery, supervisor);
+  await registerWebSocketHub(app, discovery, supervisor);
 
   app.get("/api/sessions/:sessionId/transcript", async (req, reply) => {
     const { sessionId } = req.params as { sessionId: string };

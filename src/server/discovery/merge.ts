@@ -33,6 +33,7 @@ export function mergeSessions(
       version: entry.version,
       startedAt: entry.startedAt,
       updatedAt: entry.updatedAt,
+      procStart: entry.procStart,
       reconciled: false,
     });
   }

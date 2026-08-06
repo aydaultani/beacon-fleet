@@ -24,6 +24,10 @@ export interface DiscoveredSession {
   version?: string;
   startedAt?: number;
   updatedAt?: number;
+  /** Recorded process-start time, only present when sourced from the
+   * sessions-registry. Required by adopt-via-resume's PID-reuse guard —
+   * see discovery/liveness.ts verifyProcStart(). */
+  procStart?: string;
   /** Set once a `claude agents --json --all` pass has also seen this session. */
   reconciled: boolean;
 }
