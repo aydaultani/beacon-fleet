@@ -1,0 +1,163 @@
+.session-detail {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 0.75rem;
+  font-family: system-ui, sans-serif;
+}
+
+.session-detail--empty {
+  color: #888;
+  padding: 2rem;
+  text-align: center;
+}
+
+.transcript {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  background: #fafafa;
+  min-height: 200px;
+}
+
+.transcript__hint {
+  color: #999;
+  padding: 1rem;
+}
+
+.transcript-entry {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid #eee;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.transcript-entry__role {
+  flex: 0 0 auto;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  color: #666;
+  padding-top: 0.15rem;
+  min-width: 4.5rem;
+}
+
+.transcript-entry__preview {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.transcript-entry--user .transcript-entry__role {
+  color: #2563eb;
+}
+
+.transcript-entry--assistant .transcript-entry__role {
+  color: #16a34a;
+}
+
+.transcript-entry--system .transcript-entry__role {
+  color: #a855f7;
+}
+
+.transcript-entry--error {
+  background: #fef2f2;
+}
+
+.banner {
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.banner--error {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.banner--info {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.permission-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.permission-card {
+  border: 1px solid #fbbf24;
+  background: #fffbeb;
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+}
+
+.permission-card__title {
+  font-weight: 600;
+}
+
+.permission-card__desc {
+  color: #555;
+  font-size: 0.85rem;
+  margin-top: 0.15rem;
+}
+
+.permission-card__tool {
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: #92400e;
+  margin-top: 0.3rem;
+}
+
+.permission-card__actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.controls textarea {
+  resize: vertical;
+  min-height: 3rem;
+  padding: 0.5rem;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-family: inherit;
+}
+
+.controls__buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+button {
+  padding: 0.4rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: white;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+button:hover:not(:disabled) {
+  background: #f3f4f6;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button.deny {
+  color: #b91c1c;
+  border-color: #fca5a5;
+}
