@@ -1,5 +1,5 @@
 {
-  "name": "@beacon-hq/web",
+  "name": "@beacon-fleet/web",
   "private": true,
   "version": "0.1.0",
   "type": "module",

@@ -1,5 +1,5 @@
 {
-  "name": "beacon-hq",
+  "name": "beacon-fleet",
   "version": "0.1.0",
   "description": "Local mission control for Claude Code agents: fleet dashboard, agent control, and a cross-project ticket system agents write to via MCP.",
   "license": "MIT",
@@ -7,8 +7,16 @@
   "engines": {
     "node": ">=22.5.0"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aydaultani/beacon-fleet.git"
+  },
+  "bugs": {
+    "url": "https://github.com/aydaultani/beacon-fleet/issues"
+  },
+  "homepage": "https://github.com/aydaultani/beacon-fleet#readme",
   "bin": {
-    "beacon-hq": "bin/beacon-hq.js"
+    "beacon-fleet": "bin/beacon-fleet.js"
   },
   "files": [
     "bin",
@@ -19,12 +27,12 @@
   ],
   "scripts": {
     "dev:server": "tsx watch src/cli.ts",
-    "dev:web": "pnpm --filter @beacon-hq/web dev",
-    "build:web": "pnpm --filter @beacon-hq/web build && rm -rf public && cp -r web/dist public",
+    "dev:web": "pnpm --filter @beacon-fleet/web dev",
+    "build:web": "pnpm --filter @beacon-fleet/web build && rm -rf public && cp -r web/dist public",
     "build:server": "tsup src/cli.ts --format esm --target node22 --out-dir dist --clean",
     "build": "pnpm run build:web && pnpm run build:server",
     "typecheck": "tsc --noEmit",
-    "start": "node bin/beacon-hq.js"
+    "start": "node bin/beacon-fleet.js"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.223",

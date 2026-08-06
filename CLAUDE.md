@@ -5,8 +5,17 @@ Claude Code session on the machine (any directory), gives full control (prompt,
 interrupt, kill) over agents Beacon itself launches, and runs a cross-project JIRA-lite
 ticket system that agents write to via MCP.
 
-Package name: `beacon-hq` (published under this name because `beacon` and
-`claude-beacon` were already taken on npm). Run via `npx beacon-hq`.
+Package name: `beacon-fleet`. Run via `npx beacon-fleet`.
+
+> **Name history (2026-08-06):** `beacon` and `claude-beacon` were already taken on
+> npm. We then reserved `beacon-hq` and started building against that name — it's
+> published in the ticket/architecture prose below and in old commits — but npm's
+> registry **blocked publishing `beacon-hq`** as too similar to an unrelated existing
+> package, `beaconhq`. Renamed to `beacon-fleet` everywhere (package name, bin,
+> `@beacon-hq/web` → `@beacon-fleet/web`) and reserved it on npm as a placeholder
+> (`0.0.1`, no real code). **If you're touching this repo and see a stray `beacon-hq`
+> reference below or in code/config, it's stale — the live name is `beacon-fleet`.**
+> The GitHub repo has since also been renamed to `aydaultani/beacon-fleet` to match.
 
 Design plan and rationale: `~/.claude/plans/purrfect-noodling-whisper.md`.
 
@@ -20,8 +29,8 @@ and search. Session management is table stakes, kept intentionally thin.
 ## Architecture
 
 ```
-beacon-hq (single npm package, TypeScript)
-├── cli/            npx beacon-hq — starts server, opens browser
+beacon-fleet (single npm package, TypeScript)
+├── cli/            npx beacon-fleet — starts server, opens browser
 ├── server/
 │   ├── discovery/  fs.watch over ~/.claude/{sessions,jobs,daemon}
 │   │               + `claude agents --json --all` reconcile every ~10s
