@@ -7,7 +7,11 @@ import { DiscoveryService } from "./discovery/index.js";
 import { readTranscriptSince } from "./transcripts/index.js";
 import { SupervisorManager } from "./supervisor/index.js";
 import { registerAgentRoutes } from "./routes/agents.js";
+import { registerTicketRoutes } from "./routes/tickets.js";
+import { registerLayoutRoutes } from "./routes/layout.js";
 import { registerWebSocketHub } from "./ws.js";
+import { openDatabase, SqliteTicketsCore, SqliteLayoutStore } from "../db/index.js";
+import { registerTicketsMcpRoute } from "./mcp/http-server.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -35,10 +39,18 @@ export async function startServer({ port, host }: StartServerOptions): Promise<S
     for (const session of supervisor.list()) session.kill();
   });
 
+  const db = openDatabase();
+  app.addHook("onClose", async () => db.close());
+  const tickets = new SqliteTicketsCore(db);
+  const layout = new SqliteLayoutStore(db);
+
   app.get("/api/health", async () => ({ ok: true }));
   app.get("/api/sessions", async () => discovery.list());
 
   registerAgentRoutes(app, discovery, supervisor);
+  registerTicketRoutes(app, tickets);
+  registerLayoutRoutes(app, layout);
+  registerTicketsMcpRoute(app, tickets);
   await registerWebSocketHub(app, discovery, supervisor);
 
   app.get("/api/sessions/:sessionId/transcript", async (req, reply) => {
