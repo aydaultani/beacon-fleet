@@ -36,6 +36,21 @@ export const migrations: Migration[] = [
       );
     `,
   },
+  {
+    version: 2,
+    description: "session groups: per-session group override + per-group display name",
+    sql: `
+      CREATE TABLE session_group_overrides (
+        session_id TEXT PRIMARY KEY,
+        group_id TEXT NOT NULL
+      );
+
+      CREATE TABLE session_group_names (
+        group_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL
+      );
+    `,
+  },
 ];
 
 /**
