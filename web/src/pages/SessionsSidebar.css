@@ -137,6 +137,62 @@
   opacity: 0.4;
 }
 
+.sidebar__row--multi-selected {
+  background: var(--accent-dim);
+  outline: 1px solid var(--accent-border);
+}
+
+.sidebar__row-check {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  border-radius: 3px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+}
+
+.sidebar__row-check--on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.sidebar__bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--accent-dim);
+  font-size: var(--text-xs);
+  color: var(--text);
+}
+
+.sidebar__bulk-bar button {
+  padding: 3px var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--accent-border);
+  background: var(--accent);
+  color: var(--on-accent);
+  cursor: pointer;
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+.sidebar__bulk-bar button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sidebar__bulk-bar button.sidebar__bulk-clear {
+  background: none;
+  color: var(--text-secondary);
+  border-color: var(--border);
+}
+
+.sidebar__bulk-bar span {
+  margin-right: auto;
+}
+
 .sidebar__status-dot {
   width: 8px;
   height: 8px;
@@ -147,10 +203,12 @@
 
 .sidebar__status-dot--busy {
   background: var(--status-busy);
+  color: var(--status-busy);
 }
 
 .sidebar__status-dot--waiting {
   background: var(--status-waiting);
+  color: var(--status-waiting);
 }
 
 .sidebar__status-dot--idle {

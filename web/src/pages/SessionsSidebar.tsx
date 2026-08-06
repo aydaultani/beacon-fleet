@@ -4,6 +4,7 @@ import { useSessionGroups } from "../hooks/useSessionGroups.js";
 import type { AgentSummary } from "../hooks/useAgents.js";
 import { PathPicker } from "../components/PathPicker.js";
 import { ContextMenu, type ContextMenuState } from "../components/ContextMenu.js";
+import { ConfirmModal, type ConfirmModalState } from "../components/ConfirmModal.js";
 import "./SessionsSidebar.css";
 
 function shortenCwd(cwd: string): string {
@@ -19,6 +20,8 @@ const STATUS_LABEL: Record<SessionStatus, string> = {
   shell: "Shell",
   unknown: "Unknown",
 };
+
+const PULSE_STATUSES = new Set<SessionStatus>(["busy", "waiting"]);
 
 export interface SessionsSidebarProps {
   agents: AgentSummary[];
@@ -38,6 +41,63 @@ export function SessionsSidebar({ agents, launch, selectedSessionId, onSelect }:
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const [draggingSessionId, setDraggingSessionId] = useState<string | null>(null);
   const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
+  const [multiSelected, setMultiSelected] = useState<Set<string>>(new Set());
+  const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null);
+  const [bulkAdopting, setBulkAdopting] = useState(false);
+  const [bulkAdoptError, setBulkAdoptError] = useState<string | null>(null);
+
+  const ownedSessionIds = new Set(agents.filter((a) => a.sessionId).map((a) => a.sessionId as string));
+
+  function handleRowClick(e: MouseEvent, sessionId: string) {
+    if (e.shiftKey) {
+      setMultiSelected((prev) => {
+        const next = new Set(prev);
+        if (next.has(sessionId)) next.delete(sessionId);
+        else next.add(sessionId);
+        return next;
+      });
+      return;
+    }
+    // A plain click always drops any in-progress multi-selection — shift
+    // is what signals "I'm building a batch," not an accidental leftover.
+    if (multiSelected.size > 0) setMultiSelected(new Set());
+    onSelect(sessionId);
+  }
+
+  function clearMultiSelect() {
+    setMultiSelected(new Set());
+  }
+
+  function confirmBulkAdopt() {
+    const targets = Array.from(multiSelected).filter((id) => !ownedSessionIds.has(id));
+    if (targets.length === 0) return;
+    setConfirmModal({
+      title: `Adopt ${targets.length} session${targets.length === 1 ? "" : "s"}?`,
+      description: "Stops each running process and resumes it under Beacon, interrupting any in-flight work in all of them.",
+      confirmLabel: "Adopt all",
+      danger: true,
+      onConfirm: () => void runBulkAdopt(targets),
+    });
+  }
+
+  async function runBulkAdopt(targets: string[]) {
+    setBulkAdopting(true);
+    setBulkAdoptError(null);
+    const results = await Promise.all(
+      targets.map(async (sessionId) => {
+        try {
+          const res = await fetch(`/api/sessions/${sessionId}/adopt`, { method: "POST" });
+          return res.ok;
+        } catch {
+          return false;
+        }
+      }),
+    );
+    setBulkAdopting(false);
+    clearMultiSelect();
+    const failCount = results.filter((ok) => !ok).length;
+    if (failCount > 0) setBulkAdoptError(`${failCount} of ${targets.length} failed to adopt.`);
+  }
 
   function handleRowDragStart(e: DragEvent<HTMLButtonElement>, sessionId: string) {
     e.dataTransfer.setData("text/plain", sessionId);
@@ -141,6 +201,19 @@ export function SessionsSidebar({ agents, launch, selectedSessionId, onSelect }:
         Show only live sessions
       </label>
 
+      {multiSelected.size > 0 && (
+        <div className="sidebar__bulk-bar">
+          <span>{multiSelected.size} selected</span>
+          <button onClick={confirmBulkAdopt} disabled={bulkAdopting}>
+            {bulkAdopting ? "Adopting…" : "Adopt all"}
+          </button>
+          <button className="sidebar__bulk-clear" onClick={clearMultiSelect} disabled={bulkAdopting}>
+            Clear
+          </button>
+        </div>
+      )}
+      {bulkAdoptError && <div className="sidebar__error">{bulkAdoptError}</div>}
+
       {error && <div className="sidebar__error">{error}</div>}
 
       <div className="sidebar__list">
@@ -184,7 +257,8 @@ export function SessionsSidebar({ agents, launch, selectedSessionId, onSelect }:
                   session={session}
                   selected={session.sessionId === selectedSessionId}
                   dragging={session.sessionId === draggingSessionId}
-                  onSelect={onSelect}
+                  multiSelected={multiSelected.has(session.sessionId)}
+                  onClick={(e) => handleRowClick(e, session.sessionId)}
                   onContextMenu={(e) => openSessionMenu(e, session, group.groupId)}
                   onDragStart={(e) => handleRowDragStart(e, session.sessionId)}
                   onDragEnd={handleRowDragEnd}
@@ -196,6 +270,7 @@ export function SessionsSidebar({ agents, launch, selectedSessionId, onSelect }:
       </div>
 
       <ContextMenu state={menu} onClose={() => setMenu(null)} />
+      <ConfirmModal state={confirmModal} onClose={() => setConfirmModal(null)} />
     </aside>
   );
 }
@@ -204,7 +279,8 @@ function SessionRow({
   session,
   selected,
   dragging,
-  onSelect,
+  multiSelected,
+  onClick,
   onContextMenu,
   onDragStart,
   onDragEnd,
@@ -212,7 +288,8 @@ function SessionRow({
   session: DiscoveredSession;
   selected: boolean;
   dragging: boolean;
-  onSelect: (sessionId: string) => void;
+  multiSelected: boolean;
+  onClick: (e: MouseEvent) => void;
   onContextMenu: (e: MouseEvent) => void;
   onDragStart: (e: DragEvent<HTMLButtonElement>) => void;
   onDragEnd: () => void;
@@ -220,17 +297,22 @@ function SessionRow({
   const classes = ["sidebar__row"];
   if (selected) classes.push("sidebar__row--selected");
   if (dragging) classes.push("sidebar__row--dragging");
+  if (multiSelected) classes.push("sidebar__row--multi-selected");
 
   return (
     <button
       className={classes.join(" ")}
-      onClick={() => onSelect(session.sessionId)}
+      onClick={onClick}
       onContextMenu={onContextMenu}
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
+      title="Click to open · Shift-click to select multiple"
     >
-      <span className={`sidebar__status-dot sidebar__status-dot--${session.status}`} />
+      <span className={`sidebar__row-check${multiSelected ? " sidebar__row-check--on" : ""}`} aria-hidden="true" />
+      <span
+        className={`sidebar__status-dot sidebar__status-dot--${session.status}${PULSE_STATUSES.has(session.status) ? " pulse" : ""}`}
+      />
       <div className="sidebar__row-text">
         <div className="sidebar__row-name">
           {session.name}
