@@ -16,12 +16,12 @@ Plan file (original design doc): `~/.claude/plans/purrfect-noodling-whisper.md`
 | 2 | Repo scaffold (CLI, Fastify server, Vite/React web) | done |
 | 3 | Discovery read model (`src/server/discovery/`) | done, verified against real live sessions |
 | 4 | Transcript service (`src/server/transcripts/`) | done, verified against a real transcript |
-| 5 | SQLite + tickets-core + layout table (`src/db/`) | **CLAIMED, in progress as of 2026-08-06 ~16:10 IST** — original session assigned this went quiet with nothing pushed; picking it up now to unblock #6 wiring and #8's remaining routes. If you see a `src/db/` commit that isn't from this claim, check timestamps before assuming a collision. |
-| 6 | MCP surfaces (`src/server/mcp/`) | done, verified with a real MCP client/server handshake. Not yet wired into `src/server/index.ts` — needs #5. |
+| 5 | SQLite + tickets-core + layout table (`src/db/`) | **done**, wired, verified end-to-end |
+| 6 | MCP surfaces (`src/server/mcp/`) | **done and wired** — in-process SDK server + standalone HTTP `/mcp`, verified with a real external MCP client |
 | 7 | Agent supervisor (`src/server/supervisor/`) | done, verified against a real launched agent |
-| 8 | Fastify REST + WebSocket (`src/server/routes/`, `src/server/ws.ts`) | **core done and verified** (agents + WS) + 47 passing tests (`pnpm test`). Ticket/layout routes deliberately not wired yet — blocked on #5, in progress now |
-| 9 | React web UI (`web/`) | **in progress elsewhere** — fleet board under `web/`, session detail view under `web/src/pages/SessionDetail.tsx` (both actively being worked as of last check — vite proxy config for `/ws` just landed) |
-| 10 | End-to-end verification | not started — depends on 5, 8 (ticket wiring), 9 |
+| 8 | Fastify REST + WebSocket (`src/server/routes/`, `src/server/ws.ts`) | **done** — agents, tickets, layout routes + WS, all wired and verified |
+| 9 | React web UI (`web/`) | **in progress elsewhere** — fleet board in `web/`, session detail view in `web/src/pages/SessionDetail.tsx`. Both actively worked as of last check. |
+| 10 | End-to-end verification | not started — only remaining blocker is #9 landing |
 
 Also worth knowing: the npm package was renamed `beacon-hq` → `beacon-fleet`
 mid-build (npm blocked publishing `beacon-hq` as too similar to an existing
@@ -36,7 +36,7 @@ pnpm run build
 node bin/beacon-fleet.js --port 4317
 ```
 
-This boots a real server that:
+This boots a real, fully-wired server:
 - Lists every live Claude Code session on the machine at `GET /api/sessions`
   (file-watcher + `claude agents --json --all` reconcile)
 - Streams a session's transcript incrementally at
@@ -44,73 +44,49 @@ This boots a real server that:
 - Launches/prompts/interrupts/kills real Beacon-owned agents via
   `POST /api/agents`, `POST /api/agents/:id/prompt`, etc.
 - Adopts an external session via `POST /api/sessions/:sessionId/adopt`
+- Full ticket CRUD at `/api/tickets` and fleet-board layout at `/api/layout`,
+  backed by SQLite (`~/.beacon/beacon.db`, `node:sqlite`, no native build step)
+- A real MCP server at `POST /mcp` — point any external `claude` session at it
+  (`.mcp.json` → `{"mcpServers":{"beacon":{"type":"http","url":"http://127.0.0.1:4317/mcp"}}}`)
+  and it can create/update/list tickets directly. Beacon-owned agents get the
+  same tools in-process automatically.
 - Pushes all of the above live over `ws://.../ws`
-- Serves the (currently placeholder) built web app at `/`
+- Serves the built web app at `/` (currently the fleet board + session detail
+  work landing from another session — check `web/` for current state)
 - Shuts down cleanly on Ctrl+C (stops file watchers, kills owned agents,
   exits 0) and opens the dashboard in your browser automatically
   (`--no-open` to skip)
 
+`pnpm test` runs 64 passing tests (`node --test` via `tsx`) covering
+discovery merge logic, transcript parsing/tailing/usage-dedup, the push
+queue and permission bridge, ticket/layout persistence and migrations, and
+agent-route validation paths.
+
 ## Immediate next steps, in order
 
-1. **Land #5** (tickets-core + layout) if not already in — it unblocks
-   wiring `/api/tickets` and `/api/layout` into `src/server/index.ts`
-   (small commit, the routes just need to import the real module instead
-   of nothing).
-2. **Land #9** (fleet board UI) — currently the web app is just a
-   health-check placeholder (`web/src/App.tsx`).
-3. **Wire the MCP HTTP endpoint into the server** — `registerTicketsMcpRoute`
-   exists (`src/server/mcp/http-server.ts`) but is not yet called from
-   `src/server/index.ts`. Needs the same real `tickets-core` as #1 above.
-4. Task #10: run the full verification checklist from the plan file once
-   5+8+9 are in.
+1. **Land #9** (fleet board UI + session detail view) — the only thing left.
+2. Task #10: once #9 is in, run the full verification checklist from the plan
+   file — launch/prompt/interrupt/kill from the actual browser UI, adopt an
+   external session from the UI, confirm the ticket board updates live when
+   an agent creates a ticket via MCP, confirm the drag-to-nest fleet board
+   persists through `/api/layout`.
 
-## Open parallel slice (safe to hand to a new session right now)
+## Two real bugs worth knowing about (in case similar ones lurk elsewhere)
 
-**Session detail view** — CLAIMED, in progress as of 2026-08-06 ~15:30 IST
-(building `web/src/pages/SessionDetail.tsx`, not touching `App.tsx` or any
-other fleet-board file). If you're reading this and it's been a while with
-no follow-up commit, it's safe to pick back up.
+Both were caught by tests or real end-to-end runs, not by typecheck — worth
+remembering as a reminder to keep verifying against real behavior, not just
+`tsc --noEmit`, per the standing rule below.
 
-Live transcript pane, prompt box, permission-approval cards. All the backend
-it needs already exists and is verified:
-`GET /api/sessions/:id/transcript?offset=N`, `POST /api/agents/:id/prompt`,
-`POST /api/agents/:id/interrupt`, `POST /api/agents/:id/permissions/:requestId`,
-and the `/ws` channel (messages tagged `{type: "agent-event", agentId, event}`
-where `event.kind` is `"message" | "permission-request" | "closed"`).
-
-To avoid colliding with whoever's building the fleet board in `web/`, this
-should live in its own files — e.g. `web/src/pages/SessionDetail.tsx` plus
-whatever child components it needs — and should NOT edit `web/src/App.tsx`
-or any fleet-board component without checking git log first for what exists.
-
-Prompt to hand a fresh session:
-
-> `git pull` the `beacon-fleet` repo (github.com/aydaultani/beacon-fleet).
-> Read `CLAUDE.md` and `PROGRESS.md` first. Someone else may be mid-work on
-> the fleet board in `web/` — check `git log --oneline -20` before touching
-> any file already there, and build in new files, not existing ones.
->
-> Build a session detail view: `web/src/pages/SessionDetail.tsx` (or
-> similar). Given a session/agent id, it should show:
-> - The live transcript, fetched via `GET /api/sessions/:id/transcript?offset=0`
->   then polling/websocket-updating with the returned `nextOffset` for
->   subsequent reads (each entry has `type`, `preview`, `timestamp`, `model`,
->   `usage`, etc. — see `TranscriptEntry` in `src/server/transcripts/types.ts`).
-> - A prompt box that POSTs to `/api/agents/:id/prompt` with `{text}` —
->   only works for Beacon-owned agents (an id returned from
->   `POST /api/agents`), not arbitrary discovered sessionIds.
-> - An interrupt button (`POST /api/agents/:id/interrupt`) and kill button
->   (`POST /api/agents/:id/kill`).
-> - Permission-request cards: listen on `ws://<host>/ws` for messages
->   shaped `{type: "agent-event", agentId, event: {kind: "permission-request",
->   request: {id, toolName, input, title, displayName?, description?}}}`,
->   render a card with the title/description and allow/deny buttons, and on
->   click POST `/api/agents/:id/permissions/:requestId` with
->   `{choice: "once" | "always" | "deny"}`.
->
-> Typecheck (`cd web && npx tsc -b`) before committing. Commit and push to
-> `main` when done — normal authorship, no Claude co-author trailer, commit
-> messages describing what changed and why.
+- `listTickets` sorted by `created_at DESC` alone. Two tickets created in the
+  same millisecond (very plausible for an agent batch-creating a few) sorted
+  in undefined order relative to each other. Fixed with `id DESC` as a
+  tiebreaker. Caught by a test creating two tickets back-to-back.
+- tsup/esbuild silently mangles a static `import ... from "node:sqlite"` into
+  the invalid bare specifier `"sqlite"` in the bundled output — no build or
+  typecheck error, only a runtime `ERR_MODULE_NOT_FOUND` when the actual CLI
+  runs. Worked around with `createRequire` instead of a static import. Full
+  detail in `CLAUDE.md`'s "Build & runtime gotchas" section — read that
+  before adding another `node:sqlite`-importing file.
 
 ## Notes on how this repo is being built
 
@@ -120,5 +96,7 @@ Prompt to hand a fresh session:
   task at hand (`git add <specific paths>`, never `git add -A`).
 - Everything claimed "done" above was verified against real behavior, not
   just `tsc --noEmit` — real launched agents, real MCP handshakes, real
-  live transcripts on this machine. Keep that bar.
+  live transcripts on this machine, real HTTP round-trips against a real
+  SQLite database. Keep that bar; it's caught two real bugs already (see
+  above).
 - No Claude co-author trailer in commits; author stays the human user.

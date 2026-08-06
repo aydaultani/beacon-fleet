@@ -159,6 +159,29 @@ Zero runtime deps, but **peer deps must be installed explicitly**:
   sessions** — the config is a live JS object handle in Beacon's process, not a socket.
   External sessions need the standalone Streamable-HTTP MCP endpoint instead.
 
+## Build & runtime gotchas
+
+- **`node:sqlite` (used for the ticket store, `src/db/`) breaks under tsup/esbuild if
+  statically imported.** esbuild doesn't yet recognize `node:sqlite` as a builtin with no
+  bare-name alias, and silently rewrites `import { DatabaseSync } from "node:sqlite"` to
+  the invalid specifier `"sqlite"` in the bundled output — **no error at typecheck or
+  build time**, only a runtime `ERR_MODULE_NOT_FOUND` when the built CLI actually runs.
+  `src/db/client.ts` works around this with
+  `createRequire(import.meta.url)("node:sqlite")` instead of a static import — a runtime
+  string esbuild doesn't rewrite. If you add another file that constructs a `DatabaseSync`
+  (as opposed to just importing its *type*, which is erased and unaffected), use the same
+  pattern, not a static value import. `build:server` also passes `--external node:sqlite`,
+  which didn't fix this alone — the `createRequire` workaround is what actually matters.
+- **`node:sqlite` has no shipped types** even in the latest `@types/node@22.x`. Ambient
+  declarations live in `src/db/node-sqlite.d.ts` — extend that file if you touch more of
+  the API surface, don't add a third-party sqlite type package for it.
+- **`pnpm run test` executes via `sh`, not your interactive shell.** A `tsx --test
+  src/**/*.test.ts` script works fine typed directly in zsh (globstar recurses) but
+  silently under-matches through `sh -c` (no globstar — `**` behaves like a single-level
+  `*`), running a fraction of the suite with **no error, no warning**. The `test` script
+  uses `$(find src -name '*.test.ts')` instead — verify any future change to it against
+  `sh -c "..."` directly, not just direct shell execution, or this regresses invisibly.
+
 ## Security posture (open source — non-negotiable)
 
 - Bind `127.0.0.1` by default. `--host` requires a generated bearer token, printed once
