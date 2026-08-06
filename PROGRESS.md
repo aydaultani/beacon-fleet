@@ -144,6 +144,27 @@ behavior, per the note at the bottom of this file.
   (pid killed, resumed session same Claude Code session id, real history);
   adopt triggered from the actual browser UI end to end; ticket
   create/status-change/delete round-tripping through the real UI.
+- **Adopt deadlocked permanently after the "Adopted" banner** — `BeaconSession.sessionId`
+  was only ever set from the SDK's `system/init` message (`session.ts`), but the
+  underlying `claude` subprocess (streaming-input mode) emits nothing at all —
+  including `init` — until the *first* message is pushed into its input queue.
+  For adopt-via-resume specifically that's an unbreakable deadlock: the web UI
+  only unlocks the prompt box once `agentIdBySessionId` resolves, which needs
+  `sessionId`, which never arrived because nothing could be typed to trigger
+  it. Verified live: adopted disposable `claude --bg` sessions and polled
+  `/api/agents` for 20s+ with zero prompts sent — `sessionId` never appeared.
+  Fixed by seeding `this.sessionId = opts.resume` synchronously in the
+  `BeaconSession` constructor whenever resuming — that id is already known
+  before the subprocess even starts, since resume requires passing it. `pump()`
+  still overwrites it if `init` reports something different (the resume
+  cwd-mismatch trap in `CLAUDE.md` can silently start a fresh session
+  instead). Re-verified live post-fix: `sessionId` present in the very `adopt`
+  response, agent linkable with zero prompts sent, and a real follow-up prompt
+  against the resumed session round-tripped correctly under the same session
+  id. **Same root cause likely also affects plain `Launch agent`** (a fresh
+  launch has no `resume` to seed from, so its `sessionId` is probably still
+  stuck the same way) — not fixed here since it wasn't the reported bug and
+  needs a different fix (no id to seed from), but worth checking next.
 
 ## A tooling note for future browser-based verification
 
@@ -156,6 +177,96 @@ dispatch real `PointerEvent`s via `mcp__claude-in-chrome__javascript_tool`
 instead. Separately: never click a button wired to `window.confirm()`
 directly in an automated browser session (it blocks the tab) — stub
 `window.confirm = () => true` via `javascript_tool` first.
+
+**Correction/addendum (2026-08-07), for a hand-rolled (non-dnd-kit) drag
+implementation that calls `setPointerCapture` in its own `onPointerDown`:**
+`javascript_tool`-dispatched synthetic `PointerEvent`s do **not** work here
+either, for a different reason than the dnd-kit case above —
+`element.setPointerCapture(pointerId)` throws `NotFoundError: No active
+pointer with the given id is found` for a pointerId that was never a real
+OS-originated pointer, which silently aborts the handler before any state
+update runs (looks exactly like "dragging does nothing," easy to mistake
+for an app bug). The `computer` tool's `left_click_drag` **does** work
+correctly for this case — it's real synthetic OS-level input via CDP, which
+the browser does mark as an active pointer. So: dnd-kit's `PointerSensor` ⇒
+dispatch raw events yourself; a hand-rolled `setPointerCapture`-based
+implementation ⇒ use `left_click_drag` instead. Try both if unsure which
+one the code under test uses.
+
+## Session tree: free-drag nodes + zoom/pan (2026-08-07)
+
+The tree/flowchart canvas (`SessionTree.tsx`) now supports repositioning —
+both whole session-root trees and individual subagent nodes can be dragged
+anywhere, plus scroll-to-zoom, +/− buttons, and a "Fit" button that frames
+every node currently in the pane.
+
+- Reused the layout backend built for the old drag/nest fleet board
+  (`/api/layout`, `SqliteLayoutStore`, `useLayout.ts`) rather than adding a
+  new persistence path — it's a generic `tileId -> {x,y}` store, so subagent
+  `agentId`s work as keys exactly like session ids did before. Un-dragged
+  nodes fall back to a computed default (session roots in a left-to-right
+  row; subagent children centered in a row under their *live* parent
+  position, so an undragged child visually follows its root while the root
+  itself is being dragged).
+- Real bug caught before this ever reached the browser: the first draft
+  tracked "has this gesture crossed the drag threshold" as its own React
+  state (`setDidDrag`), called from *inside* the `setDrag` updater function.
+  That's an impure updater with a side effect — exactly what React
+  StrictMode's double-invoke exists to catch, since it can call an updater
+  more than once per event. Fixed by tracking that flag in a ref instead —
+  it doesn't need its own render pass, only `drag.dx/dy` does, and mutating
+  a ref is harmless if invoked twice.
+- Zoom is a CSS `transform: scale()` on the canvas with `transform-origin: 0
+  0`; the scroll container is a separate non-transformed wrapper positioned
+  `absolute; inset: 0` so the floating zoom-control pill can be pinned to
+  the pane's corner via plain `position: absolute` without being pushed
+  around by the (very large, 1600px+) scrollable canvas content — a sibling
+  `position: sticky` inside the scrolling element does not stay put here,
+  it still scrolls away once the content is taller than the pill's sticky
+  offset allows. Drag math divides screen-space pointer deltas by the
+  current zoom so a node tracks the cursor 1:1 at any zoom level; the
+  drag-vs-click distance threshold is checked in *screen* space (what the
+  user actually felt) before converting.
+- "Fit" reads real DOM boxes (`offsetLeft/Top/Width/Height` on every
+  `.tree-node`) rather than recomputing positions from state, so it works
+  regardless of how much has been dragged around — those offsets are
+  unaffected by the ancestor's scale transform.
+- Verified live: dragged a session-root tree to a new spot with the
+  subagents underneath it, reloaded the page, confirmed the position
+  persisted via `/api/layout`; zoom in/out and Fit all confirmed visually
+  in a real browser tab.
+
+## Header: live machine-wide token count + clock + agent status counts (2026-08-06/07)
+
+Added to the top nav bar (`App.tsx`), independent of the sidebar/tree
+rebuild above:
+
+- `src/server/transcripts/machine-usage.ts` — `MachineUsageTracker` walks
+  every `.jsonl` under `~/.claude/projects/` (main + subagent transcripts),
+  sums token usage with the same per-file `message.id` dedup as a single
+  session (`usage.ts`), and caches completed files by size so a 2s rescan
+  interval doesn't re-parse full history each tick. Emits `"update"`,
+  fanned out over the existing `/ws` hub as `{type: "usage"}` (`ws.ts`) —
+  same push pattern as session discovery, not a client poll. `GET
+  /api/usage` covers first paint.
+- Web: `useUsage.ts` (WS + REST first-paint, mirrors `useSessions.ts`),
+  `useAnimatedNumber.ts` (count-up tween), `components/HeaderStats.tsx`
+  (`HeaderClock` — live seconds/timezone/date, ticks every 1s client-side;
+  `TokenUsageBadge` — animated total with a brief pulse on increase, hover
+  tooltip breaks down input/output/cache).
+- `AgentStatusSummary` (same `HeaderStats.tsx`) — counts every discovered
+  session by status (`busy`→"running", `waiting`, `idle`, `shell`,
+  `unknown`) with `alive: false` sessions bucketed as "offline" first
+  regardless of their last-known status, so no session double-counts.
+  Reuses `useSessions()` directly (already real-time over /ws) — no new
+  server endpoint needed, this one's purely a client-side aggregation of
+  data already being pushed for the sidebar.
+- Verified live in a real browser: token count and clock both advanced
+  correctly across a 3s wait with no page reload; status counts
+  (`8 running · 1 idle · 8 offline`) matched the sidebar's per-row
+  status/offline badges exactly.
+- Tests: `machine-usage.test.ts` (5 cases, temp-dir fixtures, no real
+  `~/.claude` data touched per the fixture rule below).
 
 ## Possible follow-ups (beyond the original 10 tasks — not a "we're basically done" list)
 
@@ -170,6 +281,37 @@ over `/ws` instead of polling (`useSessions.ts` connects directly, matching
 SessionDetail's reconnect-with-backoff pattern) — verified by launching a
 real `claude --bg` session and watching it appear with zero extra
 `/api/sessions` requests.
+
+## Chat UX pass, directly from user feedback (2026-08-07)
+
+User feedback: the transcript view was showing system/attachment/other
+noise (`turn_duration`, `stop_hook_summary`, raw tool_result "user" lines),
+empty assistant bubbles, and didn't read like a chat. Landed in response:
+
+- `SessionDetail`/`SubagentDetail` now only render real user turns,
+  assistant text, and assistant tool actions — everything else filtered
+  client-side, entries with no preview text dropped instead of rendering
+  empty. Restyled to read like Claude Code's own output (plain prose, `›`
+  for user turns, `●` bullet for tool actions) instead of a log table.
+- Consecutive identical tool calls collapse into one line ("Bash ×5"),
+  click to expand and see each call's actual command/file_path/etc. —
+  server-side `parse.ts` now extracts `toolName`/`toolDetail` per entry to
+  make that possible. Shared via `groupChatEntries()`/`ToolGroup`, exported
+  from `SessionDetail.tsx` and reused as-is in `SubagentDetail.tsx`.
+- Shift-click multi-select in the sidebar + bulk "Adopt all" (with the same
+  `ConfirmModal` pattern as single adopt), verified against two real
+  disposable `claude --bg` sessions end to end through the actual UI.
+- Sidebar and detail panels are now drag-to-resize (`useResizableWidth` +
+  `Resizer`), width persisted per-panel in localStorage, clamped to a
+  sane min/max, correct direction on both a left- and a right-anchored
+  panel.
+
+Tooling note that mattered for verifying all of this: the `computer` tool's
+`left_click_drag` does not reliably fire dnd-kit's `PointerSensor` or plain
+`pointerdown`/`pointermove`/`pointerup` listeners — dispatch real
+`PointerEvent`s via `mcp__claude-in-chrome__javascript_tool` instead for
+any drag interaction (tile drag, panel resize). Confirmed working that way
+in every case above.
 
 ## Notes on how this repo is being built
 
