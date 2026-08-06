@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import Fastify from "fastify";
 import fastifyStatic from "@fastify/static";
 import { registerAuthGate, isLoopbackHost } from "./auth.js";
+import { DiscoveryService } from "./discovery/index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -16,7 +17,12 @@ export async function startServer({ port, host }: StartServerOptions): Promise<v
 
   const token = registerAuthGate(app, host);
 
+  const discovery = new DiscoveryService();
+  await discovery.start();
+  app.addHook("onClose", async () => discovery.stop());
+
   app.get("/api/health", async () => ({ ok: true }));
+  app.get("/api/sessions", async () => discovery.list());
 
   const publicDir = join(__dirname, "..", "public");
   app.register(fastifyStatic, { root: publicDir });
