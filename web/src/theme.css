@@ -1,54 +1,47 @@
-/* Beacon — terminal/TUI identity. One monospace face everywhere, sharp
-   corners, near-black canvas, ANSI-style status color. Built to look like
-   it's running in a real terminal dashboard (k9s, lazygit, htop), not a
-   web dashboard imitating one. */
+/* Beacon design tokens — third pass. Calm and legible, not a genre skin.
+   Rejected so far: soft-pastel dashboard (pass 1), terminal/TUI maximalism
+   (pass 2: brackets, blink, scanlines). This pass spends its one visual
+   idea on the session/subagent tree itself; everything around it stays
+   quiet — one readable UI font, monospace only where there's really code
+   or a path, restrained color, generous spacing. */
 
 :root {
-  --bg: #05060a;
-  --bg-inset: #000000;
-  --surface: #0c0e14;
-  --surface-hover: #12141d;
-  --surface-active: #191c28;
-  --border: #262b3a;
-  --border-strong: #3d4258;
+  --bg: #14161c;
+  --surface: #1b1e26;
+  --surface-hover: #232631;
+  --surface-active: #2a2e3b;
+  --border: #2b2f3a;
+  --border-strong: #3a3f4d;
 
-  --text: #e4e6ee;
-  --text-secondary: #868ca3;
-  --text-tertiary: #4d5266;
+  --text: #e4e6ec;
+  --text-secondary: #9296a3;
+  --text-tertiary: #5f6373;
 
-  /* Amber phosphor — the "beacon" signal. Also the waiting/needs-you
-     status: a beacon's whole job is drawing the eye, so the one hue this
-     app spends deliberately does double duty on purpose. */
-  --accent: #ffb454;
-  --on-accent: #14100a;
-  --accent-dim: rgba(255, 180, 84, 0.12);
-  --accent-border: rgba(255, 180, 84, 0.45);
+  /* Clean blue — Linear/Vercel/Stripe territory. Interactive-only:
+     selection, primary buttons, focus, links. Status gets its own
+     separate palette below rather than borrowing this hue, the way a
+     calm SaaS dashboard keeps "brand" and "state" distinct. */
+  --accent: #5b8def;
+  --accent-strong: #79a3f3;
+  --on-accent: #0a1220;
+  --accent-dim: rgba(91, 141, 239, 0.14);
+  --accent-border: rgba(91, 141, 239, 0.4);
 
-  /* ANSI-style status palette, matched to what modern TUI dashboards
-     (k9s, lazygit, btop) actually use — a real 16-color terminal palette
-     on black, not pastel semantic chips. */
-  --ansi-green: #3ddc84;
-  --ansi-yellow: var(--accent);
-  --ansi-blue: #5eb0ff;
-  --ansi-magenta: #c792ff;
-  --ansi-red: #ff6b6b;
-  --ansi-gray: #565c70;
+  --status-busy: var(--accent);
+  --status-waiting: #e0b23f;
+  --status-idle: #6ebf8b;
+  --status-shell: #a68bd6;
+  --status-offline: #5f6373;
+  --status-error: #d9706c;
+  --status-error-dim: rgba(217, 112, 108, 0.14);
 
-  --status-busy: var(--ansi-blue);
-  --status-waiting: var(--ansi-yellow);
-  --status-idle: var(--ansi-green);
-  --status-shell: var(--ansi-magenta);
-  --status-offline: var(--ansi-gray);
-  --status-error: var(--ansi-red);
-  --status-error-dim: rgba(255, 107, 107, 0.12);
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "SF Mono", ui-monospace, "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
 
-  --font: "SF Mono", ui-monospace, "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
-
-  --text-2xs: 0.6875rem;
   --text-xs: 0.75rem;
   --text-sm: 0.8125rem;
   --text-md: 0.9375rem;
-  --text-lg: 1.1rem;
+  --text-lg: 1.125rem;
 
   --space-1: 4px;
   --space-2: 8px;
@@ -57,18 +50,16 @@
   --space-5: 24px;
   --space-6: 32px;
 
-  --radius: 0px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
 
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.6);
-  --shadow-lg: 0 20px 56px rgba(0, 0, 0, 0.7);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 16px 44px rgba(0, 0, 0, 0.5);
 
   color-scheme: dark;
 }
-
-/* This identity commits fully to one visual world — a terminal screen —
-   the same way a real terminal doesn't offer a "light mode." Contrast and
-   legibility are the point either way, so this stays single-theme by
-   choice rather than by omission. */
 
 * {
   box-sizing: border-box;
@@ -85,25 +76,12 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
+  font-size: var(--text-sm);
   -webkit-font-smoothing: antialiased;
-  position: relative;
-}
-
-/* Subtle scanline texture — static, not animated. A nod to a CRT
-   terminal without being a gimmick you have to stare through all day. */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 9999;
-  background-image: repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.012) 0px, rgba(255, 255, 255, 0.012) 1px, transparent 1px, transparent 3px);
-  mix-blend-mode: overlay;
 }
 
 ::selection {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--accent-dim);
 }
 
 * {
@@ -112,12 +90,13 @@ body::before {
 }
 
 *::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
 }
 
 *::-webkit-scrollbar-thumb {
   background: var(--border-strong);
+  border-radius: 5px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
@@ -132,76 +111,20 @@ select,
 textarea {
   font-family: inherit;
   color: inherit;
-  border-radius: var(--radius);
 }
 
 :focus-visible {
-  outline: 1px solid var(--accent);
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
-/* A bracket tag: [ LABEL ]. The one recurring structural device across
-   the whole app — status, role, priority, count all render this way
-   because that IS how a real terminal dashboard encodes a short state
-   label. Not decoration; it's the app's actual vocabulary. */
-.tag {
-  font-size: var(--text-2xs);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.tag::before {
-  content: "[";
-  opacity: 0.55;
-}
-
-.tag::after {
-  content: "]";
-  opacity: 0.55;
-}
-
-.panel-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-2);
-  padding-bottom: var(--space-2);
-  border-bottom: 1px solid var(--border);
-  margin-bottom: var(--space-1);
-}
-
-.panel-header__tag {
-  color: var(--accent);
-}
-
-.panel-header__count {
-  font-size: var(--text-2xs);
-  color: var(--text-tertiary);
-  font-variant-numeric: tabular-nums;
-}
-
-@keyframes term-blink {
-  0%,
-  60% {
-    opacity: 1;
-  }
-  61%,
-  100% {
-    opacity: 0.35;
-  }
-}
-
-.blink {
-  animation: term-blink 1.1s steps(1) infinite;
+.mono {
+  font-family: var(--font-mono);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .blink {
-    animation: none;
-  }
   * {
     transition-duration: 0.001ms !important;
+    animation-duration: 0.001ms !important;
   }
 }

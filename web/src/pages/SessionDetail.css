@@ -7,18 +7,6 @@
   min-width: 0;
 }
 
-.session-detail::before {
-  content: "[ session ]";
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--accent);
-  padding-bottom: var(--space-2);
-  border-bottom: 1px solid var(--border);
-  margin-bottom: var(--space-1);
-}
-
 .session-detail--empty {
   color: var(--text-tertiary);
   padding: var(--space-6);
@@ -27,17 +15,13 @@
   margin: auto;
 }
 
-.session-detail--empty::before {
-  content: "";
-  display: none;
-}
-
 .transcript {
   flex: 1;
   overflow-y: auto;
   border: 1px solid var(--border);
-  padding: var(--space-2);
-  background: var(--bg-inset);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg);
   min-height: 160px;
 }
 
@@ -51,33 +35,23 @@
   display: flex;
   gap: var(--space-2);
   align-items: flex-start;
-  padding: 2px 0;
+  padding: 4px 0;
   font-size: var(--text-sm);
-  line-height: 1.45;
+  line-height: 1.5;
+  border-bottom: 1px solid var(--border);
 }
 
-.transcript-entry:hover {
-  background: var(--surface-hover);
+.transcript-entry:last-child {
+  border-bottom: none;
 }
 
 .transcript-entry__role {
   flex: 0 0 auto;
-  font-weight: 700;
-  text-transform: uppercase;
-  font-size: var(--text-2xs);
-  letter-spacing: 0.02em;
+  font-weight: 500;
+  font-size: var(--text-xs);
   color: var(--text-tertiary);
-  min-width: 5.2rem;
-}
-
-.transcript-entry__role::before {
-  content: "[";
-  opacity: 0.5;
-}
-
-.transcript-entry__role::after {
-  content: "]";
-  opacity: 0.5;
+  min-width: 4.5rem;
+  padding-top: 1px;
 }
 
 .transcript-entry__preview {
@@ -104,6 +78,7 @@
 
 .transcript-entry--error {
   background: var(--status-error-dim);
+  border-radius: var(--radius-sm);
 }
 
 .transcript-entry--error .transcript-entry__preview {
@@ -112,20 +87,18 @@
 
 .banner {
   padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
   font-size: var(--text-sm);
-  border: 1px solid transparent;
 }
 
 .banner--error {
   background: var(--status-error-dim);
   color: var(--status-error);
-  border-color: var(--status-error);
 }
 
 .banner--info {
   background: var(--accent-dim);
-  color: var(--accent);
-  border-color: var(--accent-border);
+  color: var(--accent-strong);
 }
 
 .adopt-banner {
@@ -146,20 +119,16 @@
 }
 
 .permission-card {
-  border: 1px solid var(--accent);
+  border: 1px solid var(--accent-border);
   background: var(--accent-dim);
-  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
 }
 
 .permission-card__title {
-  font-weight: 700;
+  font-weight: 600;
   font-size: var(--text-sm);
   color: var(--text);
-}
-
-.permission-card__title::before {
-  content: "! ";
-  color: var(--accent);
 }
 
 .permission-card__desc {
@@ -169,14 +138,10 @@
 }
 
 .permission-card__tool {
+  font-family: var(--font-mono);
   font-size: var(--text-xs);
-  color: var(--accent);
+  color: var(--accent-strong);
   margin-top: var(--space-2);
-}
-
-.permission-card__tool::before {
-  content: "$ ";
-  opacity: 0.6;
 }
 
 .permission-card__actions {
@@ -197,7 +162,8 @@
   min-height: 2.75rem;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border);
-  background: var(--bg-inset);
+  border-radius: var(--radius-md);
+  background: var(--bg);
   color: var(--text);
   font-family: inherit;
   font-size: var(--text-sm);
@@ -211,30 +177,39 @@
   color: var(--text-tertiary);
 }
 
+.controls textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.controls__reason {
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+}
+
 .controls__buttons {
   display: flex;
   gap: var(--space-2);
 }
 
 .session-detail button {
-  padding: 5px var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text-secondary);
   cursor: pointer;
   font-size: var(--text-xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  font-weight: 500;
 }
 
 .session-detail button:hover:not(:disabled) {
-  border-color: var(--text-tertiary);
+  background: var(--surface-hover);
   color: var(--text);
 }
 
 .session-detail button:disabled {
-  opacity: 0.35;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
@@ -242,11 +217,11 @@
   background: var(--accent);
   border-color: var(--accent);
   color: var(--on-accent);
+  font-weight: 600;
 }
 
 .session-detail .controls__buttons button:first-child:hover:not(:disabled) {
-  background: var(--on-accent);
-  color: var(--accent);
+  background: var(--accent-strong);
 }
 
 .session-detail button.deny {
@@ -255,6 +230,5 @@
 }
 
 .session-detail button.deny:hover:not(:disabled) {
-  background: var(--status-error);
-  color: var(--on-accent);
+  background: var(--status-error-dim);
 }
