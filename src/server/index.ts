@@ -10,6 +10,7 @@ import { registerAgentRoutes } from "./routes/agents.js";
 import { registerTicketRoutes } from "./routes/tickets.js";
 import { registerLayoutRoutes } from "./routes/layout.js";
 import { registerFsRoutes } from "./routes/fs.js";
+import { registerSubagentRoutes } from "./routes/subagents.js";
 import { registerWebSocketHub } from "./ws.js";
 import { openDatabase, SqliteTicketsCore, SqliteLayoutStore } from "../db/index.js";
 import { registerTicketsMcpRoute } from "./mcp/http-server.js";
@@ -52,6 +53,7 @@ export async function startServer({ port, host }: StartServerOptions): Promise<S
   registerTicketRoutes(app, tickets);
   registerLayoutRoutes(app, layout);
   registerFsRoutes(app);
+  registerSubagentRoutes(app, discovery);
   registerTicketsMcpRoute(app, tickets);
   await registerWebSocketHub(app, discovery, supervisor);
 

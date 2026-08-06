@@ -28,8 +28,13 @@ export async function readTranscriptHistory(cwd: string, sessionId: string): Pro
 }
 
 export async function readTranscriptSince(cwd: string, sessionId: string, offset: number): Promise<TranscriptPage> {
-  const path = transcriptPath(cwd, sessionId);
+  return readTranscriptAtPathSince(transcriptPath(cwd, sessionId), offset);
+}
 
+/** Shared by readTranscriptSince (main transcript) and the subagent reader
+ * (subagents.ts) — both are just a JSONL file at a known path, tailed the
+ * same way. */
+export async function readTranscriptAtPathSince(path: string, offset: number): Promise<TranscriptPage> {
   let tail: Awaited<ReturnType<typeof readLinesSince>>;
   try {
     tail = await readLinesSince(path, offset);

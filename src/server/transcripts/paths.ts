@@ -6,6 +6,15 @@ export function transcriptPath(cwd: string, sessionId: string): string {
   return join(CLAUDE_PROJECTS_DIR, mangleProjectPath(cwd), `${sessionId}.jsonl`);
 }
 
-export function subagentTranscriptPath(cwd: string, sessionId: string, agentId: string): string {
-  return join(CLAUDE_PROJECTS_DIR, mangleProjectPath(cwd), sessionId, "subagents", `agent-${agentId}.jsonl`);
+export function subagentTranscriptPath(
+  cwd: string,
+  sessionId: string,
+  agentId: string,
+  baseDir: string = CLAUDE_PROJECTS_DIR,
+): string {
+  return join(baseDir, mangleProjectPath(cwd), sessionId, "subagents", `agent-${agentId}.jsonl`);
+}
+
+export function subagentsDir(cwd: string, sessionId: string, baseDir: string = CLAUDE_PROJECTS_DIR): string {
+  return join(baseDir, mangleProjectPath(cwd), sessionId, "subagents");
 }
