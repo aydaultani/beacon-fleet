@@ -87,6 +87,20 @@ remembering as a reminder to keep verifying against real behavior, not just
   runs. Worked around with `createRequire` instead of a static import. Full
   detail in `CLAUDE.md`'s "Build & runtime gotchas" section — read that
   before adding another `node:sqlite`-importing file.
+- `verifyProcStart` (the PID-reuse guard behind adopt-via-resume) compared
+  Claude Code's recorded `procStart` (UTC) against `ps -o lstart=` (local
+  timezone) as strings — always mismatching on any machine not in UTC,
+  which would have made adopt-via-resume silently unusable outside UTC.
+  Only found by actually running adopt against a real external session
+  (`claude --bg`), not by the unit tests, since this function had zero test
+  coverage before. Fixed and now covered — see `liveness.ts`/`liveness.test.ts`.
+
+Real end-to-end verification done beyond what's listed above: the
+non-loopback bearer-token auth gate (no token → 401, wrong token → 401,
+correct token → 200, applies globally not just to one route), and
+adopt-via-resume against a genuine external `claude --bg` session — original
+pid confirmed killed, resumed session confirmed to be the same Claude Code
+session id with real appended history, not a fresh one.
 
 ## Notes on how this repo is being built
 
