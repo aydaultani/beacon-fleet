@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import Fastify from "fastify";
+import Fastify, { type FastifyInstance } from "fastify";
 import fastifyStatic from "@fastify/static";
 import { registerAuthGate, isLoopbackHost } from "./auth.js";
 import { DiscoveryService } from "./discovery/index.js";
@@ -16,7 +16,12 @@ export interface StartServerOptions {
   host: string;
 }
 
-export async function startServer({ port, host }: StartServerOptions): Promise<void> {
+export interface StartedServer {
+  app: FastifyInstance;
+  url: string;
+}
+
+export async function startServer({ port, host }: StartServerOptions): Promise<StartedServer> {
   const app = Fastify({ logger: false });
 
   const token = registerAuthGate(app, host);
@@ -61,4 +66,6 @@ export async function startServer({ port, host }: StartServerOptions): Promise<v
     console.log(`Non-loopback bind — bearer token required on every request:`);
     console.log(`  Authorization: Bearer ${token}`);
   }
+
+  return { app, url };
 }
