@@ -13,7 +13,15 @@
   font-size: var(--text-sm);
 }
 
-.tree__canvas {
+.tree__forest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.tree__tree {
   display: flex;
   flex-direction: column;
   align-items: center;

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { SessionsSidebar } from "./pages/SessionsSidebar.js";
 import { SessionTree, type SelectedNode } from "./pages/SessionTree.js";
 import { SessionDetail } from "./pages/SessionDetail.js";
@@ -6,51 +6,42 @@ import { SubagentDetail } from "./pages/SubagentDetail.js";
 import { TicketBoard } from "./pages/TicketBoard.js";
 import { useAgents } from "./hooks/useAgents.js";
 import { useSessions } from "./hooks/useSessions.js";
+import { useSessionGroups } from "./hooks/useSessionGroups.js";
 import "./App.css";
 
 type View = "fleet" | "tickets";
 
+async function postJson(url: string, body?: unknown): Promise<void> {
+  await fetch(url, {
+    method: "POST",
+    headers: body ? { "content-type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+}
+
 export function App() {
   const { agents, agentIdBySessionId, launch } = useAgents();
   const { sessions } = useSessions();
+  const { groupIdOf } = useSessionGroups(sessions);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const [selectedNode, setSelectedNode] = useState<SelectedNode>({ kind: "session" });
+  const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(null);
   const [view, setView] = useState<View>("fleet");
 
-  const session = sessions.find((s) => s.sessionId === selectedSessionId);
-  const agentId = selectedSessionId ? agentIdBySessionId.get(selectedSessionId) : undefined;
+  const activeGroupId = selectedSessionId ? groupIdOf(selectedSessionId) : null;
+  const groupSessions = activeGroupId ? sessions.filter((s) => groupIdOf(s.sessionId) === activeGroupId) : [];
 
-  const selectSession = useCallback((sessionId: string) => {
+  const selectSession = (sessionId: string) => {
     setSelectedSessionId(sessionId);
-    setSelectedNode({ kind: "session" });
-  }, []);
+    setSelectedNode({ kind: "session", sessionId });
+  };
 
-  const sendPrompt = useCallback(
-    async (text: string) => {
-      if (!agentId) return;
-      await fetch(`/api/agents/${agentId}/prompt`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ text }),
-      });
-    },
-    [agentId],
-  );
-
-  const adoptSession = useCallback(async () => {
-    if (!selectedSessionId) return;
-    await fetch(`/api/sessions/${selectedSessionId}/adopt`, { method: "POST" });
-  }, [selectedSessionId]);
-
-  const interruptSession = useCallback(async () => {
-    if (!agentId) return;
-    await fetch(`/api/agents/${agentId}/interrupt`, { method: "POST" });
-  }, [agentId]);
-
-  const killSession = useCallback(async () => {
-    if (!agentId) return;
-    await fetch(`/api/agents/${agentId}/kill`, { method: "POST" });
-  }, [agentId]);
+  const detailSession =
+    selectedNode?.kind === "subagent"
+      ? sessions.find((s) => s.sessionId === selectedNode.sessionId)
+      : selectedNode?.kind === "session"
+        ? sessions.find((s) => s.sessionId === selectedNode.sessionId)
+        : undefined;
+  const detailAgentId = detailSession ? agentIdBySessionId.get(detailSession.sessionId) : undefined;
 
   return (
     <main className="app">
@@ -79,21 +70,21 @@ export function App() {
           </div>
           <div className="app__tree">
             <SessionTree
-              session={session}
-              agentId={agentId}
+              sessions={groupSessions}
+              agentIdBySessionId={agentIdBySessionId}
               selectedNode={selectedNode}
               onSelectNode={setSelectedNode}
-              onAdopt={() => void adoptSession()}
-              onInterrupt={() => void interruptSession()}
-              onKill={() => void killSession()}
-              onDelegate={(text) => void sendPrompt(text)}
+              onAdopt={(sessionId) => void postJson(`/api/sessions/${sessionId}/adopt`)}
+              onInterrupt={(agentId) => void postJson(`/api/agents/${agentId}/interrupt`)}
+              onKill={(agentId) => void postJson(`/api/agents/${agentId}/kill`)}
+              onDelegate={(agentId, text) => void postJson(`/api/agents/${agentId}/prompt`, { text })}
             />
           </div>
           <div className="app__detail">
-            {selectedNode.kind === "subagent" && session ? (
-              <SubagentDetail sessionId={session.sessionId} agentId={selectedNode.agentId} />
+            {selectedNode?.kind === "subagent" && detailSession ? (
+              <SubagentDetail sessionId={detailSession.sessionId} agentId={selectedNode.agentId} />
             ) : (
-              <SessionDetail sessionId={selectedSessionId ?? undefined} agentId={agentId} />
+              <SessionDetail sessionId={detailSession?.sessionId} agentId={detailAgentId} />
             )}
           </div>
         </div>
