@@ -31,4 +31,13 @@ export interface TranscriptEntry {
   usage?: TokenUsage;
   preview?: string;
   isError?: boolean;
+  /** Set when this entry is an assistant tool_use with no accompanying text
+   * block — the raw tool name (e.g. "Bash", "Read"), for grouping runs of
+   * the same tool in the UI ("Bash ×5") instead of repeating a line per call. */
+  toolName?: string;
+  /** Brief per-call argument summary (command/file_path/pattern/url/query,
+   * whichever the tool has) — what makes each call in a collapsed group
+   * distinguishable once expanded. Absent if the tool's input has none of
+   * the recognized fields. */
+  toolDetail?: string;
 }

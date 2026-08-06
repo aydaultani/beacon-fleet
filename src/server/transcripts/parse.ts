@@ -14,6 +14,7 @@ export function parseTranscriptLine(line: string): TranscriptEntry | null {
 
   const type = normalizeType(raw.type);
   const message = isRecord(raw.message) ? raw.message : undefined;
+  const toolUse = type === "assistant" ? extractToolUse(message) : undefined;
 
   return {
     raw,
@@ -32,6 +33,8 @@ export function parseTranscriptLine(line: string): TranscriptEntry | null {
     usage: extractUsage(isRecord(message?.usage) ? message.usage : undefined),
     preview: extractPreview(type, message, raw),
     isError: raw.isApiErrorMessage === true,
+    toolName: toolUse?.toolName,
+    toolDetail: toolUse?.toolDetail,
   };
 }
 
@@ -92,6 +95,47 @@ function extractPreview(
     return raw.subtype;
   }
 
+  return undefined;
+}
+
+interface ToolUseInfo {
+  toolName: string;
+  toolDetail?: string;
+}
+
+/** Same priority as extractPreview: a text block anywhere in the message
+ * means this isn't a bare tool-use entry, matching what actually renders. */
+function extractToolUse(message: Record<string, unknown> | undefined): ToolUseInfo | undefined {
+  if (!message) return undefined;
+  const content = message.content;
+  if (!Array.isArray(content)) return undefined;
+
+  for (const block of content) {
+    if (isRecord(block) && block.type === "text" && typeof block.text === "string" && block.text.length > 0) {
+      return undefined;
+    }
+  }
+
+  for (const block of content) {
+    if (isRecord(block) && block.type === "tool_use" && typeof block.name === "string") {
+      const input = isRecord(block.input) ? block.input : {};
+      const detail = summarizeToolInput(input);
+      return { toolName: block.name, toolDetail: detail ? truncate(detail, 100) : undefined };
+    }
+  }
+
+  return undefined;
+}
+
+/** Whichever of these common argument shapes is present, in priority
+ * order — good enough for a one-line "what was this specific call" without
+ * hardcoding every tool's exact schema. */
+function summarizeToolInput(input: Record<string, unknown>): string | undefined {
+  const fields = ["command", "file_path", "pattern", "url", "query", "path", "prompt"];
+  for (const field of fields) {
+    const value = input[field];
+    if (typeof value === "string" && value.length > 0) return value;
+  }
   return undefined;
 }
 

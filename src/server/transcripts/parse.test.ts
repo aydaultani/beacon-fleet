@@ -108,3 +108,65 @@ test("null parentUuid is preserved, not coerced to undefined", () => {
   const entry = parseTranscriptLine(line);
   assert.equal(entry?.parentUuid, null);
 });
+
+test("extracts toolName and toolDetail from a bare tool_use line", () => {
+  const line = JSON.stringify({
+    type: "assistant",
+    message: { content: [{ type: "tool_use", name: "Bash", input: { command: "ls -la /tmp" } }] },
+  });
+  const entry = parseTranscriptLine(line);
+  assert.equal(entry?.toolName, "Bash");
+  assert.equal(entry?.toolDetail, "ls -la /tmp");
+});
+
+test("prefers file_path over other fields for tools that have it", () => {
+  const line = JSON.stringify({
+    type: "assistant",
+    message: { content: [{ type: "tool_use", name: "Read", input: { file_path: "/tmp/x.txt", limit: 50 } }] },
+  });
+  const entry = parseTranscriptLine(line);
+  assert.equal(entry?.toolName, "Read");
+  assert.equal(entry?.toolDetail, "/tmp/x.txt");
+});
+
+test("toolDetail is absent when the input has none of the recognized fields", () => {
+  const line = JSON.stringify({
+    type: "assistant",
+    message: { content: [{ type: "tool_use", name: "TodoWrite", input: { todos: [] } }] },
+  });
+  const entry = parseTranscriptLine(line);
+  assert.equal(entry?.toolName, "TodoWrite");
+  assert.equal(entry?.toolDetail, undefined);
+});
+
+test("toolName is not set when a text block is present alongside the tool_use", () => {
+  const line = JSON.stringify({
+    type: "assistant",
+    message: {
+      content: [
+        { type: "text", text: "Let me check that." },
+        { type: "tool_use", name: "Bash", input: { command: "ls" } },
+      ],
+    },
+  });
+  const entry = parseTranscriptLine(line);
+  assert.equal(entry?.toolName, undefined);
+  assert.equal(entry?.preview, "Let me check that.");
+});
+
+test("toolName is not set for a plain text-only assistant line", () => {
+  const line = JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "Done." }] } });
+  const entry = parseTranscriptLine(line);
+  assert.equal(entry?.toolName, undefined);
+});
+
+test("toolDetail is truncated for a very long command", () => {
+  const longCommand = "echo " + "x".repeat(200);
+  const line = JSON.stringify({
+    type: "assistant",
+    message: { content: [{ type: "tool_use", name: "Bash", input: { command: longCommand } }] },
+  });
+  const entry = parseTranscriptLine(line);
+  assert.ok(entry?.toolDetail && entry.toolDetail.length <= 101);
+  assert.ok(entry?.toolDetail?.endsWith("…"));
+});

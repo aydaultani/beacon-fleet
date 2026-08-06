@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ConfirmModal, type ConfirmModalState } from "../components/ConfirmModal.js";
 import "./SessionDetail.css";
 
 // Local DTOs mirroring src/server/transcripts/types.ts and
@@ -6,7 +7,7 @@ import "./SessionDetail.css";
 // imported: web/ has its own tsconfig rootDir (src only) and no shared
 // package exists between server and web yet.
 
-type TranscriptEntryType = "user" | "assistant" | "system" | "attachment" | "other";
+export type TranscriptEntryType = "user" | "assistant" | "system" | "attachment" | "other";
 
 interface TokenUsage {
   inputTokens: number;
@@ -15,7 +16,7 @@ interface TokenUsage {
   cacheReadInputTokens: number;
 }
 
-interface TranscriptEntry {
+export interface TranscriptEntry {
   type: TranscriptEntryType;
   uuid?: string;
   timestamp?: string;
@@ -23,6 +24,8 @@ interface TranscriptEntry {
   usage?: TokenUsage;
   preview?: string;
   isError?: boolean;
+  toolName?: string;
+  toolDetail?: string;
 }
 
 interface TranscriptPage {
@@ -267,6 +270,28 @@ export function SessionDetail({ agentId, sessionId }: SessionDetailProps) {
     return <div className="session-detail session-detail--empty">No session selected.</div>;
   }
 
+  // Only what belongs in a chat: real user turns, assistant text, and
+  // assistant tool actions. Everything else in the raw transcript (system
+  // lines like turn_duration/stop_hook_summary, attachments, tool_result
+  // -shaped "user" entries) is bookkeeping, not conversation, and gets left
+  // out. Entries with no preview at all (e.g. a thinking-only block that
+  // never produced text) are dropped too, instead of rendering as an empty
+  // bubble.
+  const chatEntries = entries.filter(
+    (e) => (e.type === "user" || e.type === "assistant") && Boolean(e.preview && e.preview.trim().length > 0),
+  );
+
+  // Consecutive tool actions of the same tool (Bash, Bash, Bash, ...)
+  // collapse into one "Bash ×5" line instead of repeating a row per call —
+  // individual calls are still there, just behind a click.
+  const chatItems = groupChatEntries(chatEntries);
+
+  const disabledReason = !agentId
+    ? "Disabled — this session isn't owned by Beacon. Adopt it above to send prompts, interrupt, or kill it."
+    : closed
+      ? "Disabled — session ended, no longer accepting prompts."
+      : null;
+
   return (
     <div className="session-detail">
       {sessionId && !agentId && !adopted && (
@@ -305,17 +330,21 @@ export function SessionDetail({ agentId, sessionId }: SessionDetailProps) {
         </div>
       )}
 
-      <div className="transcript" ref={transcriptRef}>
-        {entries.length === 0 && !transcriptError && <div className="transcript__hint">No messages yet.</div>}
-        {entries.map((entry, i) => (
-          <div
-            key={entry.uuid ?? i}
-            className={`transcript-entry transcript-entry--${entry.type}${entry.isError ? " transcript-entry--error" : ""}`}
-          >
-            <span className="transcript-entry__role">{entry.type}</span>
-            <span className="transcript-entry__preview">{entry.preview ?? ""}</span>
-          </div>
-        ))}
+      <div className="chat" ref={transcriptRef}>
+        {chatItems.length === 0 && !transcriptError && <div className="chat__hint">No messages yet.</div>}
+        {chatItems.map((item, i) =>
+          item.kind === "tool-group" ? (
+            <ToolGroup key={item.entries[0]?.uuid ?? i} toolName={item.toolName} entries={item.entries} />
+          ) : (
+            <div
+              key={item.entry.uuid ?? i}
+              className={`chat-msg chat-msg--${item.entry.type}${item.entry.isError ? " chat-msg--error" : ""}`}
+            >
+              {item.entry.type === "user" && <span className="chat-msg__marker">›</span>}
+              <span className="chat-msg__text">{item.entry.preview}</span>
+            </div>
+          ),
+        )}
       </div>
 
       {transcriptError && <div className="banner banner--error">{transcriptError}</div>}
@@ -326,20 +355,22 @@ export function SessionDetail({ agentId, sessionId }: SessionDetailProps) {
       )}
       {actionError && <div className="banner banner--error">{actionError}</div>}
 
-      {agentId && (
-        <div className="controls">
-          <textarea
-            value={promptText}
-            onChange={(e) => setPromptText(e.target.value)}
-            placeholder="Send a follow-up prompt…"
-            disabled={sending || Boolean(closed)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                void sendPrompt();
-              }
-            }}
-          />
+      <div className="controls">
+        <textarea
+          value={agentId ? promptText : ""}
+          onChange={(e) => agentId && setPromptText(e.target.value)}
+          placeholder={agentId ? "Send a follow-up prompt…" : disabledReason ?? ""}
+          disabled={!agentId || sending || Boolean(closed)}
+          onKeyDown={(e) => {
+            if (!agentId) return;
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              void sendPrompt();
+            }
+          }}
+        />
+        {disabledReason && <div className="controls__reason">{disabledReason}</div>}
+        {agentId && (
           <div className="controls__buttons">
             <button onClick={() => void sendPrompt()} disabled={sending || !promptText.trim() || Boolean(closed)}>
               Send
@@ -351,6 +382,63 @@ export function SessionDetail({ agentId, sessionId }: SessionDetailProps) {
               Kill
             </button>
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export type ChatItem = { kind: "message"; entry: TranscriptEntry } | { kind: "tool-group"; toolName: string; entries: TranscriptEntry[] };
+
+export function groupChatEntries(entries: TranscriptEntry[]): ChatItem[] {
+  const items: ChatItem[] = [];
+  for (const entry of entries) {
+    if (entry.type === "assistant" && entry.toolName) {
+      const last = items[items.length - 1];
+      if (last?.kind === "tool-group" && last.toolName === entry.toolName) {
+        last.entries.push(entry);
+        continue;
+      }
+      items.push({ kind: "tool-group", toolName: entry.toolName, entries: [entry] });
+      continue;
+    }
+    items.push({ kind: "message", entry });
+  }
+  return items;
+}
+
+export function ToolGroup({ toolName, entries }: { toolName: string; entries: TranscriptEntry[] }) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (entries.length === 1) {
+    const detail = entries[0]?.toolDetail;
+    return (
+      <div className="chat-msg chat-msg--tool">
+        <span className="chat-msg__bullet">●</span>
+        <span className="chat-msg__text">
+          {toolName}
+          {detail ? `: ${detail}` : ""}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="chat-msg chat-msg--tool chat-msg--tool-group">
+      <button className="chat-msg__group-toggle" onClick={() => setExpanded((e) => !e)}>
+        <span className="chat-msg__bullet">●</span>
+        <span className="chat-msg__text">
+          {toolName} ×{entries.length}
+        </span>
+        <span className="chat-msg__chevron">{expanded ? "▾" : "▸"}</span>
+      </button>
+      {expanded && (
+        <div className="chat-msg__group-items">
+          {entries.map((entry, i) => (
+            <div key={entry.uuid ?? i} className="chat-msg__group-item">
+              {entry.toolDetail ?? toolName}
+            </div>
+          ))}
         </div>
       )}
     </div>

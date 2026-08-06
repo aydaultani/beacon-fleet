@@ -1,14 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { groupChatEntries, ToolGroup, type TranscriptEntry } from "./SessionDetail.js";
 import "./SessionDetail.css";
-
-type TranscriptEntryType = "user" | "assistant" | "system" | "attachment" | "other";
-
-interface TranscriptEntry {
-  type: TranscriptEntryType;
-  uuid?: string;
-  preview?: string;
-  isError?: boolean;
-}
 
 interface TranscriptPage {
   entries: TranscriptEntry[];
@@ -75,29 +67,31 @@ export function SubagentDetail({ sessionId, agentId }: SubagentDetailProps) {
   // Same filter as SessionDetail's chatEntries: only user/assistant turns
   // with real text — tool-result/attachment/system lines are noise in
   // this view, and a thinking-only block that produced no text would
-  // otherwise render as an empty bubble.
+  // otherwise render as an empty bubble. Grouping (groupChatEntries) also
+  // shared with SessionDetail so a run of the same tool call collapses the
+  // same way here.
   const chatEntries = entries.filter(
     (e) => (e.type === "user" || e.type === "assistant") && Boolean(e.preview && e.preview.trim().length > 0),
   );
+  const chatItems = groupChatEntries(chatEntries);
 
   return (
     <div className="session-detail">
       <div className="chat" ref={transcriptRef}>
-        {chatEntries.length === 0 && !error && <div className="chat__hint">No messages yet.</div>}
-        {chatEntries.map((entry, i) => {
-          const isToolAction = entry.type === "assistant" && entry.preview!.startsWith("→ ");
-          const text = isToolAction ? entry.preview!.slice(2) : entry.preview;
-          return (
+        {chatItems.length === 0 && !error && <div className="chat__hint">No messages yet.</div>}
+        {chatItems.map((item, i) =>
+          item.kind === "tool-group" ? (
+            <ToolGroup key={item.entries[0]?.uuid ?? i} toolName={item.toolName} entries={item.entries} />
+          ) : (
             <div
-              key={entry.uuid ?? i}
-              className={`chat-msg chat-msg--${entry.type}${isToolAction ? " chat-msg--tool" : ""}${entry.isError ? " chat-msg--error" : ""}`}
+              key={item.entry.uuid ?? i}
+              className={`chat-msg chat-msg--${item.entry.type}${item.entry.isError ? " chat-msg--error" : ""}`}
             >
-              {entry.type === "user" && <span className="chat-msg__marker">›</span>}
-              {isToolAction && <span className="chat-msg__bullet">●</span>}
-              <span className="chat-msg__text">{text}</span>
+              {item.entry.type === "user" && <span className="chat-msg__marker">›</span>}
+              <span className="chat-msg__text">{item.entry.preview}</span>
             </div>
-          );
-        })}
+          ),
+        )}
       </div>
       {error && <div className="banner banner--error">{error}</div>}
     </div>
