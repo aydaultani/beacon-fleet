@@ -7,6 +7,11 @@ import { TicketBoard } from "./pages/TicketBoard.js";
 import { useAgents } from "./hooks/useAgents.js";
 import { useSessions } from "./hooks/useSessions.js";
 import { useSessionGroups } from "./hooks/useSessionGroups.js";
+import { HeaderClock, TokenUsageBadge, AgentStatusSummary } from "./components/HeaderStats.js";
+import { ThemeToggle } from "./components/ThemeToggle.js";
+import { Onboarding } from "./components/Onboarding.js";
+import { Resizer } from "./components/Resizer.js";
+import { useResizableWidth } from "./hooks/useResizableWidth.js";
 import "./App.css";
 
 type View = "fleet" | "tickets";
@@ -26,6 +31,8 @@ export function App() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(null);
   const [view, setView] = useState<View>("fleet");
+  const sidebar = useResizableWidth("beacon-sidebar-width", 260, 180, 480, "left");
+  const detail = useResizableWidth("beacon-detail-width", 380, 280, 640, "right");
 
   const activeGroupId = selectedSessionId ? groupIdOf(selectedSessionId) : null;
   const groupSessions = activeGroupId ? sessions.filter((s) => groupIdOf(s.sessionId) === activeGroupId) : [];
@@ -45,6 +52,7 @@ export function App() {
 
   return (
     <main className="app">
+      <Onboarding />
       <div className="app__header">
         <button className="app__brand" onClick={() => setView("fleet")} aria-label="Go to Fleet">
           <span className="app__brand-mark" aria-hidden="true" />
@@ -61,13 +69,20 @@ export function App() {
             Tickets
           </button>
         </nav>
+        <div className="app__header-stats">
+          <AgentStatusSummary />
+          <TokenUsageBadge />
+          <HeaderClock />
+          <ThemeToggle />
+        </div>
       </div>
 
       {view === "fleet" ? (
         <div className="app__layout">
-          <div className="app__sidebar">
+          <div className="app__sidebar" style={{ width: sidebar.width }}>
             <SessionsSidebar agents={agents} launch={launch} selectedSessionId={selectedSessionId} onSelect={selectSession} />
           </div>
+          <Resizer onPointerDown={sidebar.onPointerDown} />
           <div className="app__tree">
             <SessionTree
               sessions={groupSessions}
@@ -80,7 +95,8 @@ export function App() {
               onDelegate={(agentId, text) => void postJson(`/api/agents/${agentId}/prompt`, { text })}
             />
           </div>
-          <div className="app__detail">
+          <Resizer onPointerDown={detail.onPointerDown} />
+          <div className="app__detail" style={{ width: detail.width }}>
             {selectedNode?.kind === "subagent" && detailSession ? (
               <SubagentDetail sessionId={detailSession.sessionId} agentId={selectedNode.agentId} />
             ) : (
