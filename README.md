@@ -8,7 +8,7 @@ system your agents can write to themselves.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D22.5.0-339933?logo=node.js&logoColor=white)](https://nodejs.org)
-[![Status](https://img.shields.io/badge/status-early%20development-orange)](#status)
+[![Status](https://img.shields.io/badge/status-v1%20working%2C%20unreleased-brightgreen)](#status)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
 
 ## What is this?
@@ -21,13 +21,17 @@ shared backlog when several agents are working on related things across differen
 Beacon is a local web dashboard that fixes that:
 
 - Discovers every session on the machine, in any directory, by watching Claude Code's
-  own on-disk state. No config, no per-project setup.
+  own on-disk state. No config, no per-project setup. Updates live over a WebSocket, not
+  a poll.
 - Full control over agents Beacon launches: stream output live, send follow-up prompts,
   interrupt, approve permission requests, kill, all from the browser.
-- Read-only visibility into everything else (transcript, live status, token usage,
-  subagent tree) for sessions started the normal way (terminal, `claude`, etc.), plus the
-  ability to kill or adopt them into full control.
-- A cross-project ticket system: a JIRA-lite backlog, backed by SQLite, that agents read
+- Read-only visibility into everything else (transcript, live status, token usage) for
+  sessions started the normal way (terminal, `claude`, etc.), plus a one-click **Adopt**
+  that hands you full control of one.
+- A fleet board of draggable tiles, one per session — drag one onto another to group it
+  underneath, purely as your own spatial organization (it never touches Claude Code's
+  real process hierarchy).
+- A cross-project ticket board: a JIRA-lite backlog, backed by SQLite, that agents read
   and write themselves via MCP. Point five agents in five different repos at the same
   board.
 
@@ -78,23 +82,27 @@ in-flight work), not a silent hijack.
 
 ## Status
 
-Early development. Architecture is settled, most of it isn't built yet.
+v1 is built and working — every piece below is verified against real behavior (real
+launched agents, a real external MCP client, real SQLite writes, a real browser pass),
+not just typechecked. Not yet published to npm.
 
 | Piece | State |
 | --- | --- |
 | HTTP server, loopback-only bind, bearer-token gate for non-loopback | done |
-| Static hosting of the web SPA | done |
-| Web SPA scaffold (Vite + React) | done |
-| Session discovery (`fs.watch` over `~/.claude/{sessions,jobs,daemon}`) | planned |
-| Owned-agent supervisor (Agent SDK push-queue sessions) | planned |
-| Transcript reader (history + live tail) | planned |
-| Ticket system (SQLite-backed, MCP-exposed) | planned |
-| MCP endpoints (Streamable-HTTP + in-process) | planned |
-| Dashboard UI (fleet view, ticket board, agent control) | planned |
+| Session discovery (`fs.watch` + periodic `claude agents --json --all` reconcile) | done |
+| Transcript reader (history + incremental live tail) | done |
+| Owned-agent supervisor (Agent SDK push-queue sessions) | done |
+| Adopt-via-resume (take control of an external session) | done |
+| Ticket system (SQLite via `node:sqlite`, MCP-exposed) | done |
+| MCP endpoints (standalone HTTP `/mcp` + in-process, both surfaces) | done |
+| Fleet board (draggable/nestable session tiles, real-time over WebSocket) | done |
+| Session detail (live transcript, prompt/interrupt/kill, permission cards, adopt) | done |
+| Ticket board (kanban view over the ticket system) | done |
+| CSP headers | not yet — tracked, see [Security](#security) |
 
-If you're looking at this repo hoping to use a finished dashboard today: not yet. If you
-want to help build one, the design is unusually well-specified. See
-[Architecture](#architecture) and [Contributing](#contributing).
+The live, blow-by-blow status board (including real bugs found and fixed along the way)
+is `PROGRESS.md` in the repo root — more detail than belongs in a README, kept current
+as the project moves.
 
 ## Architecture
 
@@ -104,24 +112,28 @@ beacon-fleet  (single npm package, TypeScript, pnpm workspace)
 ├── bin/            npx beacon-fleet, starts the server and opens the browser
 │
 ├── src/
-│   ├── cli.ts              entrypoint: parses --port/--host, starts the server
+│   ├── cli.ts              entrypoint: parses --port/--host, starts the server,
+│   │                         opens the browser, handles graceful shutdown
 │   └── server/
-│       ├── index.ts        done: Fastify app, static hosting, /api/health
-│       ├── auth.ts         done: loopback bypass + bearer-token gate for --host
-│       ├── discovery/      planned: watches ~/.claude/{sessions,jobs,daemon}
-│       │                     + periodic `claude agents --json --all` reconcile
-│       ├── transcripts/    planned: session history + live tail of transcript files
-│       ├── supervisor/     planned: Beacon-owned agents via the Agent SDK
-│       ├── tickets/        planned: SQLite-backed JIRA-lite service ("tickets-core")
-│       └── mcp/            planned: Streamable-HTTP MCP endpoint (external sessions)
-│                              + in-process createSdkMcpServer() (owned sessions)
+│       ├── index.ts        Fastify app: wires every piece below together
+│       ├── auth.ts         loopback bypass + bearer-token gate for --host
+│       ├── discovery/      watches ~/.claude/{sessions,jobs,daemon}, cross-checks
+│       │                     against `claude agents --json --all` every ~10s
+│       ├── transcripts/    session history + incremental live tail of transcript files
+│       ├── supervisor/     Beacon-owned agents via the Agent SDK (streaming input,
+│       │                     interrupt, permission approval, adopt-via-resume)
+│       ├── mcp/            standalone HTTP MCP endpoint (external sessions)
+│       │                     + in-process createSdkMcpServer() (owned sessions)
+│       ├── routes/         REST: agents, tickets, layout, directory browsing
+│       └── ws.ts           single WebSocket hub: live session list + agent events
 │
-├── web/            scaffold done, React 19 + Vite SPA (dashboard UI: planned)
+├── db/             SQLite schema + migrations + tickets-core, lives at
+│                     ~/.beacon/beacon.db (node:sqlite — no native build step)
 │
-└── db/             planned: SQLite schema + migrations, lives at ~/.beacon/beacon.db
+└── web/            React 19 + Vite SPA — fleet board, session detail, ticket board
 ```
 
-`tickets-core` is designed as a pure module (`createTicket`, `updateTicket`,
+`tickets-core` (`db/tickets-core.ts`) is a pure module (`createTicket`, `updateTicket`,
 `listTickets`) consumed by both MCP surfaces, so a session Beacon owns and a session
 someone started in a terminal write through identical logic. One ticket system, no
 special cases.
@@ -160,11 +172,17 @@ Open the URL Vite prints (typically `http://localhost:5173`). The server itself 
 on `http://127.0.0.1:4317` by default.
 
 Building a production bundle (SPA compiled into `public/`, server bundled into `dist/`,
-run via `bin/beacon-fleet.js`):
+run via `bin/beacon-fleet.js`) and running it as a single process:
 
 ```bash
 pnpm build
 pnpm start
+```
+
+Run the test suite (`node --test` via `tsx`, no separate test runner dependency):
+
+```bash
+pnpm test
 ```
 
 Once published, the intended distribution is `npx beacon-fleet` (not live yet). The
@@ -177,11 +195,13 @@ machine, including their transcripts. That's treated as a hard constraint, not a
 afterthought:
 
 - Binds to `127.0.0.1` by default. Passing `--host` to bind elsewhere requires a bearer
-  token, generated fresh and printed once at startup, never persisted to disk.
+  token, generated fresh and printed once at startup, never persisted to disk. Verified:
+  no token means every route 401s, including the ones that don't look sensitive.
 - Transcripts are the biggest exposure. They can contain raw shell commands, command
-  output, and full file contents, including the contents of `.env` files. The plan is to
-  cache only envelope, tool name, and token counts by default; full message content stays
-  opt-in.
+  output, and full file contents, including the contents of `.env` files. Beacon's own
+  database (`~/.beacon/beacon.db`) never stores any of it — tickets and fleet-board layout
+  are the only things persisted there. Transcript content is read on demand from Claude
+  Code's own files and streamed straight to the browser, never cached in between.
 - Never read, cache, or log: `~/.claude/daemon/control.key`, `roster.json`'s
   `rvAuth`/`ptyAuth`, `~/.claude.json`'s `oauthAccount`/`userID`/`machineID`/
   `mcpServers[*].env`, `~/.claude/backups/*`, `~/.claude/shell-snapshots/*`.
@@ -190,30 +210,35 @@ afterthought:
   process first, to avoid signalling a reused PID.
 - Spawns use argv arrays only, never shell string interpolation, and every cwd submitted
   from the UI gets path-validated before use.
-- No external CDN dependencies. The UI is built to work fully offline. CSP is on the
-  roadmap alongside the dashboard itself.
+- No external CDN dependencies, no external fonts. The UI is built to work fully
+  offline. CSP headers are the one item still on the roadmap, not yet implemented.
 
 Found a gap between this section and reality? Please open an issue rather than a PR with
 the fix. See [Contributing](#contributing).
 
 ## Contributing
 
-This project is young enough that the architecture doc is the contribution guide.
 Useful things to know before sending a PR:
 
 - Read `CLAUDE.md` in the repo root first. It has the verified on-disk layout of Claude
   Code's session/job state, the traps in it (mangled directory names, double-counted
-  token usage, racy `~/.claude.json`), and the Agent SDK gotchas that inform every design
-  decision here.
+  token usage, racy `~/.claude.json`), the Agent SDK gotchas, and a running list of real
+  bugs already found and fixed (worth checking before you reintroduce one).
+- `PROGRESS.md` is the live status board — what's done, what's mid-flight, what's
+  actually left. Trust it over this README for anything time-sensitive.
 - Session state should be read via `fs.watch`, cross-checked periodically against `claude
   agents --json --all`. Never polled as the fast path.
 - Never copy real transcript content into the repo, fixtures, or logs. Test fixtures are
   hand-authored synthetic transcripts only.
 - Security items above are non-negotiable, not stylistic preferences. A PR that weakens
   the loopback default or logs transcript content wholesale won't be merged as-is.
+- Run `pnpm typecheck` and `pnpm test` before opening a PR; both run clean on `main`.
 
-Issues and PRs welcome, small and focused ones especially, given how much of the planned
-list above is still open.
+The server side has solid test coverage (86 tests, `node --test`); the web UI is
+currently verified by hand in a real browser rather than automated tests — that's the
+biggest open gap if you're looking for something concrete to pick up.
+
+Issues and PRs welcome, small and focused ones especially.
 
 ## License
 
