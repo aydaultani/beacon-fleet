@@ -63,6 +63,17 @@
   cursor: pointer;
 }
 
+.sidebar__group {
+  border-radius: var(--radius-md);
+  outline: 1px solid transparent;
+  transition: outline-color 0.1s ease, background 0.1s ease;
+}
+
+.sidebar__group--drag-over {
+  outline-color: var(--accent-border);
+  background: var(--accent-dim);
+}
+
 .sidebar__group-header {
   padding: var(--space-2) var(--space-2) 2px;
   font-size: 0.7rem;
@@ -70,6 +81,10 @@
   text-transform: uppercase;
   letter-spacing: 0.03em;
   color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
 }
 
 .sidebar__empty {
@@ -96,9 +111,13 @@
   border: none;
   border-radius: var(--radius-md);
   background: none;
-  cursor: pointer;
+  cursor: grab;
   text-align: left;
   width: 100%;
+}
+
+.sidebar__row:active {
+  cursor: grabbing;
 }
 
 .sidebar__row:hover {
@@ -112,6 +131,10 @@
 .sidebar__row--pending {
   cursor: default;
   opacity: 0.7;
+}
+
+.sidebar__row--dragging {
+  opacity: 0.4;
 }
 
 .sidebar__status-dot {

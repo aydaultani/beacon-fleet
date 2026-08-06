@@ -1,4 +1,4 @@
-import { useState, type MouseEvent } from "react";
+import { useState, type DragEvent, type MouseEvent } from "react";
 import { useSessions, type DiscoveredSession, type SessionStatus } from "../hooks/useSessions.js";
 import { useSessionGroups } from "../hooks/useSessionGroups.js";
 import type { AgentSummary } from "../hooks/useAgents.js";
@@ -29,13 +29,42 @@ export interface SessionsSidebarProps {
 
 export function SessionsSidebar({ agents, launch, selectedSessionId, onSelect }: SessionsSidebarProps) {
   const { sessions, error } = useSessions();
-  const { groups, renameGroup, moveSessionToGroup } = useSessionGroups(sessions);
+  const { groups, groupIdOf, renameGroup, moveSessionToGroup } = useSessionGroups(sessions);
 
   const [launchCwd, setLaunchCwd] = useState("");
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [launching, setLaunching] = useState(false);
   const [liveOnly, setLiveOnly] = useState(false);
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
+  const [draggingSessionId, setDraggingSessionId] = useState<string | null>(null);
+  const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
+
+  function handleRowDragStart(e: DragEvent<HTMLButtonElement>, sessionId: string) {
+    e.dataTransfer.setData("text/plain", sessionId);
+    e.dataTransfer.effectAllowed = "move";
+    setDraggingSessionId(sessionId);
+  }
+
+  function handleRowDragEnd() {
+    setDraggingSessionId(null);
+    setDragOverGroupId(null);
+  }
+
+  function handleGroupDragOver(e: DragEvent<HTMLDivElement>, groupId: string) {
+    if (!draggingSessionId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverGroupId !== groupId) setDragOverGroupId(groupId);
+  }
+
+  function handleGroupDrop(e: DragEvent<HTMLDivElement>, groupId: string) {
+    e.preventDefault();
+    const sessionId = e.dataTransfer.getData("text/plain") || draggingSessionId;
+    setDraggingSessionId(null);
+    setDragOverGroupId(null);
+    if (!sessionId || groupIdOf(sessionId) === groupId) return;
+    void moveSessionToGroup(sessionId, groupId);
+  }
 
   const pendingAgents = agents.filter((a) => !a.sessionId);
 
@@ -133,17 +162,32 @@ export function SessionsSidebar({ agents, launch, selectedSessionId, onSelect }:
           const visible = liveOnly ? group.sessions.filter((s) => s.alive) : group.sessions;
           if (visible.length === 0) return null;
           return (
-            <div className="sidebar__group" key={group.groupId}>
-              <div className="sidebar__group-header" onContextMenu={(e) => openGroupMenu(e, group.groupId, group.name)}>
-                {group.name}
+            <div
+              className={
+                dragOverGroupId === group.groupId ? "sidebar__group sidebar__group--drag-over" : "sidebar__group"
+              }
+              key={group.groupId}
+              onDragOver={(e) => handleGroupDragOver(e, group.groupId)}
+              onDragLeave={() => setDragOverGroupId((g) => (g === group.groupId ? null : g))}
+              onDrop={(e) => handleGroupDrop(e, group.groupId)}
+            >
+              <div
+                className="sidebar__group-header"
+                title={group.name}
+                onContextMenu={(e) => openGroupMenu(e, group.groupId, group.name)}
+              >
+                {group.name.startsWith("/") ? shortenCwd(group.name) : group.name}
               </div>
               {visible.map((session) => (
                 <SessionRow
                   key={session.sessionId}
                   session={session}
                   selected={session.sessionId === selectedSessionId}
+                  dragging={session.sessionId === draggingSessionId}
                   onSelect={onSelect}
                   onContextMenu={(e) => openSessionMenu(e, session, group.groupId)}
+                  onDragStart={(e) => handleRowDragStart(e, session.sessionId)}
+                  onDragEnd={handleRowDragEnd}
                 />
               ))}
             </div>
@@ -159,19 +203,32 @@ export function SessionsSidebar({ agents, launch, selectedSessionId, onSelect }:
 function SessionRow({
   session,
   selected,
+  dragging,
   onSelect,
   onContextMenu,
+  onDragStart,
+  onDragEnd,
 }: {
   session: DiscoveredSession;
   selected: boolean;
+  dragging: boolean;
   onSelect: (sessionId: string) => void;
   onContextMenu: (e: MouseEvent) => void;
+  onDragStart: (e: DragEvent<HTMLButtonElement>) => void;
+  onDragEnd: () => void;
 }) {
+  const classes = ["sidebar__row"];
+  if (selected) classes.push("sidebar__row--selected");
+  if (dragging) classes.push("sidebar__row--dragging");
+
   return (
     <button
-      className={selected ? "sidebar__row sidebar__row--selected" : "sidebar__row"}
+      className={classes.join(" ")}
       onClick={() => onSelect(session.sessionId)}
       onContextMenu={onContextMenu}
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
     >
       <span className={`sidebar__status-dot sidebar__status-dot--${session.status}`} />
       <div className="sidebar__row-text">

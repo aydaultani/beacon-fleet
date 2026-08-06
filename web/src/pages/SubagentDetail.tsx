@@ -72,19 +72,32 @@ export function SubagentDetail({ sessionId, agentId }: SubagentDetailProps) {
     el.scrollTop = el.scrollHeight;
   }, [entries]);
 
+  // Same filter as SessionDetail's chatEntries: only user/assistant turns
+  // with real text — tool-result/attachment/system lines are noise in
+  // this view, and a thinking-only block that produced no text would
+  // otherwise render as an empty bubble.
+  const chatEntries = entries.filter(
+    (e) => (e.type === "user" || e.type === "assistant") && Boolean(e.preview && e.preview.trim().length > 0),
+  );
+
   return (
     <div className="session-detail">
-      <div className="transcript" ref={transcriptRef}>
-        {entries.length === 0 && !error && <div className="transcript__hint">No messages yet.</div>}
-        {entries.map((entry, i) => (
-          <div
-            key={entry.uuid ?? i}
-            className={`transcript-entry transcript-entry--${entry.type}${entry.isError ? " transcript-entry--error" : ""}`}
-          >
-            <span className="transcript-entry__role">{entry.type}</span>
-            <span className="transcript-entry__preview">{entry.preview ?? ""}</span>
-          </div>
-        ))}
+      <div className="chat" ref={transcriptRef}>
+        {chatEntries.length === 0 && !error && <div className="chat__hint">No messages yet.</div>}
+        {chatEntries.map((entry, i) => {
+          const isToolAction = entry.type === "assistant" && entry.preview!.startsWith("→ ");
+          const text = isToolAction ? entry.preview!.slice(2) : entry.preview;
+          return (
+            <div
+              key={entry.uuid ?? i}
+              className={`chat-msg chat-msg--${entry.type}${isToolAction ? " chat-msg--tool" : ""}${entry.isError ? " chat-msg--error" : ""}`}
+            >
+              {entry.type === "user" && <span className="chat-msg__marker">›</span>}
+              {isToolAction && <span className="chat-msg__bullet">●</span>}
+              <span className="chat-msg__text">{text}</span>
+            </div>
+          );
+        })}
       </div>
       {error && <div className="banner banner--error">{error}</div>}
     </div>
