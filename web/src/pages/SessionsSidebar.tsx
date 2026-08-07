@@ -27,17 +27,22 @@ export interface SessionsSidebarProps {
   agents: AgentSummary[];
   launch: (cwd: string, model?: string) => Promise<{ ok: true; agent: AgentSummary } | { ok: false; error: string }>;
   selectedSessionId: string | null;
+  selectedAgentId?: string | null;
   onSelect: (sessionId: string) => void;
+  /** Fired the instant an agent exists — right after launch, or when a
+   * still-"Starting…" row is clicked — so the detail/tree panes have
+   * something to show before the session even has a sessionId yet. */
+  onSelectAgent: (agent: AgentSummary) => void;
 }
 
-export function SessionsSidebar({ agents, launch, selectedSessionId, onSelect }: SessionsSidebarProps) {
+export function SessionsSidebar({ agents, launch, selectedSessionId, selectedAgentId, onSelect, onSelectAgent }: SessionsSidebarProps) {
   const { sessions, error } = useSessions();
   const { groups, groupIdOf, renameGroup, moveSessionToGroup } = useSessionGroups(sessions);
 
   const [launchCwd, setLaunchCwd] = useState("");
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [launching, setLaunching] = useState(false);
-  const [liveOnly, setLiveOnly] = useState(false);
+  const [liveOnly, setLiveOnly] = useState(true);
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const [draggingSessionId, setDraggingSessionId] = useState<string | null>(null);
   const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
@@ -134,8 +139,16 @@ export function SessionsSidebar({ agents, launch, selectedSessionId, onSelect }:
     setLaunchError(null);
     const result = await launch(launchCwd.trim());
     setLaunching(false);
-    if (!result.ok) setLaunchError(result.error);
-    else setLaunchCwd("");
+    if (!result.ok) {
+      setLaunchError(result.error);
+      return;
+    }
+    setLaunchCwd("");
+    // Select it immediately — don't make the user hunt for "Starting…" in
+    // the list, and don't wait on the agent poll or fs.watch discovery
+    // (either can be a couple seconds out) before there's anything to look
+    // at or chat with.
+    onSelectAgent(result.agent);
   }
 
   function openGroupMenu(e: MouseEvent, groupId: string, currentName: string) {
@@ -222,13 +235,21 @@ export function SessionsSidebar({ agents, launch, selectedSessionId, onSelect }:
         )}
 
         {pendingAgents.map((agent) => (
-          <div key={agent.id} className="sidebar__row sidebar__row--pending">
-            <span className="sidebar__status-dot" />
+          <button
+            key={agent.id}
+            className={
+              agent.id === selectedAgentId
+                ? "sidebar__row sidebar__row--pending sidebar__row--selected"
+                : "sidebar__row sidebar__row--pending"
+            }
+            onClick={() => onSelectAgent(agent)}
+          >
+            <span className="sidebar__status-dot pulse" />
             <div className="sidebar__row-text">
               <div className="sidebar__row-name">Starting…</div>
               <div className="sidebar__row-meta mono">{shortenCwd(agent.cwd)}</div>
             </div>
-          </div>
+          </button>
         ))}
 
         {groups.map((group) => {
