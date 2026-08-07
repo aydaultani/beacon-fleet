@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ConfirmModal, type ConfirmModalState } from "../components/ConfirmModal.js";
+import { humanizeSessionError } from "../lib/sessionError.js";
 import "./SessionDetail.css";
 
 // Local DTOs mirroring src/server/transcripts/types.ts and
@@ -63,6 +64,15 @@ export interface SessionDetailProps {
    * freshly launched owned agent this may be undefined until the
    * `system/init` message arrives server-side. */
   sessionId?: string;
+  /** Set when this agent's session has already permanently ended by the
+   * time this component mounted (BeaconSession.ended, from GET
+   * /api/agents) — e.g. a launch failure from a bad cwd. Distinct from the
+   * live `closed` state below, which only reflects a "closed" WS event
+   * received *while this component is mounted*; a client that mounts
+   * after the failure already happened would otherwise never learn about
+   * it and show a permanently-stuck "Starting…" with a prompt box that
+   * silently no-ops. */
+  endError?: string;
 }
 
 const POLL_INTERVAL_MS = 1500;
@@ -72,16 +82,21 @@ function wsUrl(): string {
   return `${proto}://${window.location.host}/ws`;
 }
 
-export function SessionDetail({ agentId, sessionId }: SessionDetailProps) {
+export function SessionDetail({ agentId, sessionId, endError: persistedEndError }: SessionDetailProps) {
   const [entries, setEntries] = useState<TranscriptEntry[]>([]);
   const [transcriptError, setTranscriptError] = useState<string | null>(null);
   const [permissionRequests, setPermissionRequests] = useState<PendingPermissionRequest[]>([]);
   const [closed, setClosed] = useState<{ error?: string } | null>(null);
+  // Prefer whichever fired: a live WS "closed" event this session actually
+  // caught while mounted, or the persisted ended/endError already known
+  // from GET /api/agents by the time this component mounted.
+  const effectiveClosed = closed ?? (persistedEndError ? { error: persistedEndError } : null);
   const [promptText, setPromptText] = useState("");
   const [sending, setSending] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [adopting, setAdopting] = useState(false);
   const [adopted, setAdopted] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null);
 
   const offsetRef = useRef(0);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
@@ -288,7 +303,7 @@ export function SessionDetail({ agentId, sessionId }: SessionDetailProps) {
 
   const disabledReason = !agentId
     ? "Disabled — this session isn't owned by Beacon. Adopt it above to send prompts, interrupt, or kill it."
-    : closed
+    : effectiveClosed
       ? "Disabled — session ended, no longer accepting prompts."
       : null;
 
@@ -298,11 +313,16 @@ export function SessionDetail({ agentId, sessionId }: SessionDetailProps) {
         <div className="banner banner--info adopt-banner">
           <span>Read-only — this session isn't owned by Beacon.</span>
           <button
-            onClick={() => {
-              if (window.confirm("Adopt this session? This stops the running process and resumes it under Beacon, interrupting any in-flight work.")) {
-                void adopt();
-              }
-            }}
+            onClick={() =>
+              setConfirmModal({
+                title: "Adopt this session?",
+                description:
+                  "This stops the running process and resumes it under Beacon, interrupting any in-flight work.",
+                confirmLabel: "Adopt",
+                danger: true,
+                onConfirm: () => void adopt(),
+              })
+            }
             disabled={adopting}
           >
             {adopting ? "Adopting…" : "Adopt"}
@@ -348,9 +368,9 @@ export function SessionDetail({ agentId, sessionId }: SessionDetailProps) {
       </div>
 
       {transcriptError && <div className="banner banner--error">{transcriptError}</div>}
-      {closed && (
-        <div className={`banner ${closed.error ? "banner--error" : "banner--info"}`}>
-          {closed.error ? `Session ended: ${closed.error}` : "Session ended."}
+      {effectiveClosed && (
+        <div className={`banner ${effectiveClosed.error ? "banner--error" : "banner--info"}`}>
+          {effectiveClosed.error ? `Session ended: ${effectiveClosed.error}` : "Session ended."}
         </div>
       )}
       {actionError && <div className="banner banner--error">{actionError}</div>}
@@ -360,7 +380,7 @@ export function SessionDetail({ agentId, sessionId }: SessionDetailProps) {
           value={agentId ? promptText : ""}
           onChange={(e) => agentId && setPromptText(e.target.value)}
           placeholder={agentId ? "Send a follow-up prompt…" : disabledReason ?? ""}
-          disabled={!agentId || sending || Boolean(closed)}
+          disabled={!agentId || sending || Boolean(effectiveClosed)}
           onKeyDown={(e) => {
             if (!agentId) return;
             if (e.key === "Enter" && !e.shiftKey) {
@@ -372,18 +392,20 @@ export function SessionDetail({ agentId, sessionId }: SessionDetailProps) {
         {disabledReason && <div className="controls__reason">{disabledReason}</div>}
         {agentId && (
           <div className="controls__buttons">
-            <button onClick={() => void sendPrompt()} disabled={sending || !promptText.trim() || Boolean(closed)}>
+            <button onClick={() => void sendPrompt()} disabled={sending || !promptText.trim() || Boolean(effectiveClosed)}>
               Send
             </button>
-            <button onClick={() => void interrupt()} disabled={Boolean(closed)}>
+            <button onClick={() => void interrupt()} disabled={Boolean(effectiveClosed)}>
               Interrupt
             </button>
-            <button className="deny" onClick={() => void kill()} disabled={Boolean(closed)}>
+            <button className="deny" onClick={() => void kill()} disabled={Boolean(effectiveClosed)}>
               Kill
             </button>
           </div>
         )}
       </div>
+
+      <ConfirmModal state={confirmModal} onClose={() => setConfirmModal(null)} />
     </div>
   );
 }

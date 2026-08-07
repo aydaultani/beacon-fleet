@@ -141,7 +141,7 @@ export function PathPicker({ value, onChange, placeholder, disabled, onKeyDown }
 
 function FolderIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <svg className="path-picker__folder-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path
         d="M1.5 3.5A1 1 0 0 1 2.5 2.5H6l1.5 1.5H13.5A1 1 0 0 1 14.5 5V12.5A1 1 0 0 1 13.5 13.5H2.5A1 1 0 0 1 1.5 12.5V3.5Z"
         stroke="currentColor"

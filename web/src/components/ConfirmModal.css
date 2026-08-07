@@ -1,0 +1,109 @@
+.confirm-modal__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  animation: confirm-modal-fade-in 0.12s ease;
+}
+
+@keyframes confirm-modal-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.confirm-modal {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-4);
+  animation: confirm-modal-pop-in 0.12s ease;
+}
+
+@keyframes confirm-modal-pop-in {
+  from {
+    transform: scale(0.97) translateY(2px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.confirm-modal__title {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.confirm-modal__description {
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.confirm-modal__actions {
+  margin-top: var(--space-4);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.confirm-modal__cancel,
+.confirm-modal__confirm {
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.confirm-modal__cancel {
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--text-secondary);
+}
+
+.confirm-modal__cancel:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.confirm-modal__confirm {
+  border: 1px solid var(--accent-border);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.confirm-modal__confirm:hover {
+  background: var(--accent-strong);
+}
+
+.confirm-modal__confirm--danger {
+  border-color: var(--status-error);
+  background: var(--status-error);
+  color: var(--on-accent);
+}
+
+.confirm-modal__confirm--danger:hover {
+  background: var(--status-error);
+  filter: brightness(1.1);
+}
+
+.confirm-modal__confirm:focus-visible,
+.confirm-modal__cancel:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}

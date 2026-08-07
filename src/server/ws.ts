@@ -4,10 +4,12 @@ import type { WebSocket } from "@fastify/websocket";
 import type { DiscoveryService } from "./discovery/index.js";
 import type { DiscoveredSession } from "./discovery/index.js";
 import type { SupervisorManager, BeaconSessionEvent } from "./supervisor/index.js";
+import type { MachineUsageTracker, MachineUsageTotals } from "./transcripts/machine-usage.js";
 
 export type WsOutboundMessage =
   | { type: "sessions"; sessions: DiscoveredSession[] }
-  | { type: "agent-event"; agentId: string; event: BeaconSessionEvent };
+  | { type: "agent-event"; agentId: string; event: BeaconSessionEvent }
+  | { type: "usage"; usage: MachineUsageTotals };
 
 /**
  * Single fan-out channel for everything the browser needs pushed live:
@@ -20,6 +22,7 @@ export async function registerWebSocketHub(
   app: FastifyInstance,
   discovery: DiscoveryService,
   supervisor: SupervisorManager,
+  machineUsage: MachineUsageTracker,
 ): Promise<void> {
   await app.register(websocketPlugin);
 
@@ -34,11 +37,12 @@ export async function registerWebSocketHub(
 
   discovery.on("update", (sessions: DiscoveredSession[]) => broadcast({ type: "sessions", sessions }));
   supervisor.onEvent = (agentId, event) => broadcast({ type: "agent-event", agentId, event });
+  machineUsage.on("update", (usage: MachineUsageTotals) => broadcast({ type: "usage", usage }));
 
   app.get("/ws", { websocket: true }, (socket) => {
     sockets.add(socket);
-    const snapshot: WsOutboundMessage = { type: "sessions", sessions: discovery.list() };
-    socket.send(JSON.stringify(snapshot));
+    socket.send(JSON.stringify({ type: "sessions", sessions: discovery.list() } satisfies WsOutboundMessage));
+    socket.send(JSON.stringify({ type: "usage", usage: machineUsage.getTotals() } satisfies WsOutboundMessage));
     socket.on("close", () => sockets.delete(socket));
   });
 }

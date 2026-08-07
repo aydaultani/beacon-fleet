@@ -4,6 +4,13 @@ export interface AgentSummary {
   id: string;
   sessionId?: string;
   cwd: string;
+  /** Set once this agent's session has permanently ended — naturally,
+   * killed, or a launch/runtime error (e.g. a nonexistent cwd). Persisted
+   * server-side, not just a one-shot WS event, so it's still visible to a
+   * client that connects or selects this agent after the failure already
+   * happened. */
+  ended?: boolean;
+  endError?: string;
 }
 
 const POLL_INTERVAL_MS = 2000;

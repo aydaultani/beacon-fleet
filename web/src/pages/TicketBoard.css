@@ -5,16 +5,43 @@
   gap: var(--space-2);
 }
 
+.ticket-board__new-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
 .ticket-board__new {
   display: flex;
   gap: var(--space-2);
   align-items: center;
 }
 
+.ticket-board__new-body {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  resize: vertical;
+  min-height: 2.25rem;
+}
+
+.ticket-board__new-body:focus {
+  border-color: var(--accent);
+}
+
+.ticket-board__new-body::placeholder {
+  color: var(--text-tertiary);
+}
+
 .ticket-board__new input,
 .ticket-board__new select {
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   background: var(--bg-inset);
   color: var(--text);
   font-size: var(--text-sm);
@@ -33,20 +60,53 @@
   flex: 2;
 }
 
-.ticket-board__new input:nth-child(2) {
-  flex: 3;
-}
-
 .ticket-board__new select,
 .ticket-card__row select {
   background: var(--surface);
   color: var(--text-secondary);
 }
 
-.ticket-board__new button {
+.ticket-board__project-field {
+  flex: 3;
+  min-width: 0;
+}
+
+.ticket-board__assignee-field {
+  flex: 1.6;
+  min-width: 0;
+}
+
+.ticket-board__project-picker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ticket-board__project-back {
+  flex: 0 0 auto;
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: var(--text-2xs);
+  cursor: pointer;
+  white-space: nowrap;
+  padding: 0 var(--space-1);
+}
+
+.ticket-board__project-back:hover {
+  color: var(--accent);
+}
+
+/* Direct children only — a Dropdown's own trigger button lives one level
+   deeper (inside .dropdown) and must not pick up the submit button's
+   solid-accent look. This is the same class-of-bug that made PathPicker's
+   folder button invisible: a broad `.ticket-board__new button` selector
+   silently wins over a nested component's own button styling. */
+.ticket-board__new > button {
   flex: 0 0 auto;
   padding: var(--space-2) var(--space-4);
   border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
   background: var(--accent);
   color: var(--on-accent);
   cursor: pointer;
@@ -57,12 +117,12 @@
   white-space: nowrap;
 }
 
-.ticket-board__new button:hover:not(:disabled) {
+.ticket-board__new > button:hover:not(:disabled) {
   background: var(--on-accent);
   color: var(--accent);
 }
 
-.ticket-board__new button:disabled {
+.ticket-board__new > button:disabled {
   opacity: 0.35;
   cursor: not-allowed;
 }
@@ -72,8 +132,40 @@
   font-size: var(--text-xs);
 }
 
+.ticket-board__toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.ticket-board__search {
+  flex: 1;
+  min-width: 0;
+  max-width: 320px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+
+.ticket-board__search:focus {
+  border-color: var(--accent);
+}
+
+.ticket-board__search::placeholder {
+  color: var(--text-tertiary);
+}
+
+.ticket-board__filter {
+  flex: 0 0 auto;
+  width: 180px;
+}
+
 .ticket-board__error {
   padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
   font-size: var(--text-sm);
   background: var(--status-error-dim);
   color: var(--status-error);
@@ -93,8 +185,31 @@
   min-width: 230px;
   display: flex;
   flex-direction: column;
-  background: var(--bg-inset);
+  /* Deliberately --bg, not --bg-inset: a muted tray behind the (--surface,
+     usually white) cards reads as a kanban column at a glance; using the
+     same fill as the cards would flatten that depth entirely. */
+  background: var(--bg);
   border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+  transition: outline-color 0.12s var(--ease), background 0.12s var(--ease);
+}
+
+.ticket-column--drag-over {
+  outline-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.ticket-column__drop-hint {
+  margin: var(--space-1);
+  padding: var(--space-3);
+  border: 1px dashed var(--accent-border);
+  border-radius: var(--radius-md);
+  color: var(--accent);
+  font-size: var(--text-xs);
+  text-align: center;
 }
 
 .ticket-column__header {
@@ -111,7 +226,15 @@
   color: var(--text-secondary);
 }
 
+.ticket-column__header-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .ticket-column__count {
+  flex: 0 0 auto;
   color: var(--text-tertiary);
   font-weight: 400;
   font-variant-numeric: tabular-nums;
@@ -131,7 +254,70 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-left: 3px solid var(--text-tertiary);
+  border-radius: var(--radius-md);
   padding: var(--space-2) var(--space-3);
+  box-shadow: var(--shadow-sm);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  transition: border-color 0.12s var(--ease), box-shadow 0.12s var(--ease), opacity 0.12s var(--ease);
+}
+
+.ticket-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
+}
+
+.ticket-card:active {
+  cursor: grabbing;
+}
+
+.ticket-card--dragging {
+  opacity: 0.4;
+  box-shadow: var(--shadow-lg);
+}
+
+/* The actual drag visual — a small pill that tracks the pointer, instead
+   of the browser's native (and, per direct complaint, "mad janky") default
+   drag-image screenshot of the whole card. Fixed positioning + no
+   transition: it needs to track the cursor 1:1 every frame, not ease
+   toward it. */
+.ticket-drag-ghost {
+  position: fixed;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 260px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  pointer-events: none;
+  transform: rotate(-1.5deg);
+}
+
+.ticket-drag-ghost__priority {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+}
+
+.ticket-drag-ghost__priority--high {
+  color: var(--status-error);
+}
+
+.ticket-drag-ghost__priority--med {
+  color: var(--status-busy);
+}
+
+.ticket-drag-ghost__title {
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ticket-card--low {
@@ -189,6 +375,73 @@
   color: var(--text-secondary);
   margin-top: var(--space-2);
   white-space: pre-wrap;
+}
+
+.ticket-card__assignee-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.ticket-card__assignee {
+  flex: 1;
+  min-width: 0;
+}
+
+.ticket-card__assignee .dropdown__trigger {
+  padding: 3px 6px;
+  font-size: var(--text-2xs);
+  background: var(--bg-inset);
+}
+
+.ticket-card__assignee .dropdown__trigger::before {
+  content: "@ ";
+  color: var(--text-tertiary);
+}
+
+.ticket-card__assignee-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--status-offline);
+}
+
+.ticket-card__assignee-dot--busy {
+  background: var(--status-busy);
+  box-shadow: 0 0 0 2px var(--accent-dim);
+}
+
+.ticket-card__assignee-dot--waiting {
+  background: var(--status-waiting);
+  box-shadow: 0 0 0 2px rgba(224, 178, 63, 0.18);
+}
+
+.ticket-card__dispatch {
+  flex: 0 0 auto;
+  border: 1px solid var(--accent);
+  background: var(--accent-dim);
+  color: var(--accent);
+  cursor: pointer;
+  font-size: var(--text-xs);
+  padding: 3px 8px;
+}
+
+.ticket-card__dispatch:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.ticket-card__dispatch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ticket-card__dispatch-error {
+  color: var(--status-error);
+  font-size: var(--text-2xs);
+  margin-top: var(--space-1);
 }
 
 .ticket-card__row {

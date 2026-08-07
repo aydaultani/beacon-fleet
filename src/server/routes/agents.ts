@@ -1,3 +1,4 @@
+import { stat } from "node:fs/promises";
 import type { FastifyInstance } from "fastify";
 import type { DiscoveryService } from "../discovery/index.js";
 import type { BeaconSession, PermissionChoice, SupervisorManager } from "../supervisor/index.js";
@@ -6,10 +7,22 @@ interface AgentSummary {
   id: string;
   sessionId?: string;
   cwd: string;
+  /** Set once the session has permanently ended (naturally, killed, or a
+   * launch/runtime error) — see BeaconSession.ended. Lets the UI stop
+   * showing "Starting…" for an agent that died before this client ever
+   * connected to see the one-shot WS "closed" event. */
+  ended?: boolean;
+  endError?: string;
 }
 
 function summarize(session: BeaconSession): AgentSummary {
-  return { id: session.id, sessionId: session.sessionId, cwd: session.cwd };
+  return {
+    id: session.id,
+    sessionId: session.sessionId,
+    cwd: session.cwd,
+    ended: session.ended || undefined,
+    endError: session.endError,
+  };
 }
 
 /** REST surface over SupervisorManager — everything here operates only on
@@ -22,6 +35,22 @@ export function registerAgentRoutes(app: FastifyInstance, discovery: DiscoverySe
     if (!body?.cwd) {
       reply.code(400);
       return { error: "cwd is required" };
+    }
+    // A nonexistent cwd spawns a Claude Code subprocess that fails
+    // immediately with a misleading error (something about libc/musl
+    // mismatches, unrelated to the real cause) and the session dies before
+    // ever getting a sessionId — worth catching here with a clear message
+    // instead of launching a doomed process. See CLAUDE.md: "Path-validate
+    // every cwd submitted from the UI."
+    try {
+      const info = await stat(body.cwd);
+      if (!info.isDirectory()) {
+        reply.code(400);
+        return { error: `Not a directory: ${body.cwd}` };
+      }
+    } catch {
+      reply.code(400);
+      return { error: `Directory does not exist: ${body.cwd}` };
     }
     const session = supervisor.launch({ cwd: body.cwd, model: body.model, resume: body.resume });
     reply.code(201);

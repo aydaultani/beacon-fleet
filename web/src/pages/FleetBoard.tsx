@@ -5,6 +5,7 @@ import { useSessions, type DiscoveredSession, type SessionStatus } from "../hook
 import type { AgentSummary } from "../hooks/useAgents.js";
 import { useLayout } from "../hooks/useLayout.js";
 import { PathPicker } from "../components/PathPicker.js";
+import { shortenCwd } from "../lib/paths.js";
 import "./FleetBoard.css";
 
 const PULSE_STATUSES = new Set<SessionStatus>(["busy", "waiting"]);
@@ -20,12 +21,6 @@ function defaultPosition(index: number): { x: number; y: number } {
     x: 20 + (safeIndex % GRID_COLS) * GRID_COL_WIDTH,
     y: 20 + Math.floor(safeIndex / GRID_COLS) * GRID_ROW_HEIGHT,
   };
-}
-
-function shortenCwd(cwd: string): string {
-  const parts = cwd.split("/").filter(Boolean);
-  if (parts.length <= 2) return `/${parts.join("/")}`;
-  return `…/${parts.slice(-2).join("/")}`;
 }
 
 const STATUS_LABEL: Record<SessionStatus, string> = {

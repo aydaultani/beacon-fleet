@@ -313,6 +313,236 @@ Tooling note that mattered for verifying all of this: the `computer` tool's
 any drag interaction (tile drag, panel resize). Confirmed working that way
 in every case above.
 
+## Light mode: fixed two silently-undefined CSS tokens (2026-08-07)
+
+User feedback: light mode was "daunting and ugly." Investigated in a real
+browser rather than guessing at token values — the actual cause wasn't the
+color choices, it was two custom properties used all over `web/src`
+(`Dropdown.css`, `PathPicker.css`, `TicketBoard.css`, `FleetBoard.css`) that
+were **never defined in `theme.css` at all**: `--bg-inset` and
+`--text-2xs`. `var()` referencing an undefined custom property with no
+fallback resolves to nothing, so every input, dropdown trigger, and
+path-picker field was rendering with **no background whatsoever** —
+transparent, just showing whatever page tone sat behind it. In dark mode
+that's forgivable (still roughly on-tone); in light mode it's exactly what
+"washed out and ugly" looks like: every field blends into the page, nothing
+reads as a distinct, legible, interactive control.
+
+- Added both tokens to `theme.css` for real, tuned per mode: dark
+  `--bg-inset: #20232c` (a touch brighter than `--bg`, so a field still
+  reads as "there" against a dark panel); light `--bg-inset: #ffffff`
+  (deliberately *not* the same as `--bg`, which would have reproduced the
+  exact invisible-field look the bug already had — white against the
+  page's light-gray tone is what actually gives fields real contrast).
+  `--text-2xs: 0.6875rem` for the smallest label sizes already referenced
+  everywhere (ticket project paths, dispatch buttons, etc.) but never
+  backed by a real value.
+- `.ticket-column` explicitly kept on `--bg` (not `--bg-inset`) rather than
+  inheriting the fix — otherwise, now that `--bg-inset` is genuinely white
+  in light mode, the kanban *columns* would render identically to the
+  *cards* inside them and the whole board would flatten into one shade of
+  white with only borders left to read structure from.
+- Separately, `.panel-header` / `.tag` / `.panel-header__count` (used by
+  `TicketBoard.tsx`, and dead-but-still-present `FleetBoard.tsx`) had *zero*
+  CSS anywhere in the codebase — not a token issue, just never styled.
+  Visible result: "Tickets" and "0 tickets" rendered as two bare adjacent
+  spans with no gap between them, literally "Tickets0 tickets," and ticket
+  priority tags (`low`/`med`/`high`) had no pill/background at all despite
+  the markup being built for one. Added real rules for all three to
+  `theme.css` as shared utilities (small uppercase pill for `.tag`, larger
+  bold non-pill override for `.panel-header__tag`, muted trailing count for
+  `.panel-header__count`).
+- Verified live in a real browser, light mode: created an actual ticket
+  end-to-end afterward and visually confirmed the card, priority pill,
+  assignee dropdown, and status/priority selects all render with correct
+  white fills and legible borders — not just "the CSS parses," the pixels
+  actually changed. Re-checked dark mode afterward too (same token
+  additions apply there) — no regression, arguably fixed the same
+  invisible-field issue there too, just less noticeably.
+
+## Ticket assignee picker: scoped to the ticket's project (2026-08-07)
+
+User feedback/ask: when creating or assigning a ticket, the assignee
+dropdown should only ever offer sessions actually running in the ticket's
+project directory — not every live session on the machine. (The rest of
+that same request — launch-a-new-agent-for-a-ticket, auto-dispatch on
+assign, project field as a directory picker — turned out to already be
+built in `TicketBoard.tsx`/`TicketLaunchOverlay.tsx` by the time this was
+picked up; this was the one piece still missing.)
+
+- `web/src/pages/TicketBoard.tsx`: new `isSessionInProject(session,
+  project)` — cwd equal to, or nested one-or-more levels under, the project
+  path. Applied in two places: the creation form's `assigneeOptions` (scoped
+  to the `project` field currently being typed/picked), and inside
+  `TicketCard` (scoped to that card's own `ticket.project`, computed from a
+  `sessions` prop now passed down instead of a pre-filtered global list).
+- Real edge case caught before it shipped: changing the project dropdown
+  after already picking an assignee left the assignee *state* holding a now
+  out-of-scope sessionId, even though the Dropdown component itself
+  silently fell back to displaying "Unassigned" (it just can't find the
+  stale value in the new, filtered options list) — so the form would have
+  silently submitted a hidden stale assignee. Fixed with a `useEffect` that
+  clears `assignee` whenever it's no longer in the current `assigneeOptions`.
+- Verified live in a real browser against actual concurrent sessions: with
+  project set to `.../Course-catalog`, the dropdown showed only that
+  project's 2 sessions (out of ~20 total live sessions machine-wide);
+  switching to `.../Beacon` changed the list to Beacon's own sessions;
+  picking an assignee then switching projects visibly reset the field back
+  to "Unassigned" instead of carrying the stale pick silently.
+
+## Ticket dispatch: flying-card handoff into the Fleet view (2026-08-07)
+
+User ask: when a ticket is dispatched, see it visibly go to the sub-agent it
+launched, then land on the Fleet view already looking at that agent —
+"oh, this is the sub-agent we launched for this ticket, under the session
+you picked." Landed as a small self-contained animation layer on top of the
+dispatch path that already existed (`TicketBoard.tsx`'s `dispatchTicket`,
+which either reuses an assignee's owned session or `launch()`es a fresh one)
+— no change to dispatch semantics itself, just a visible handoff on success.
+
+- `web/src/components/TicketLaunchOverlay.tsx` (new) — a fixed-position card
+  that flies from wherever the user clicked (the ticket's dispatch button,
+  or the "New ticket" button when an assignee triggers auto-dispatch on
+  create) to the Fleet nav button, shrinking and fading as it arrives. Pure
+  CSS transition on `left`/`top`/`transform`/`opacity`, triggered by a
+  double-`requestAnimationFrame` flip (one rAF can land before the initial
+  paint commits, which just snaps the card to its end state with no visible
+  motion — two guarantees the start position has painted first). A fixed
+  620ms timer, independent of the CSS duration, calls `onDone` — the actual
+  view switch and node selection happen only once the card has visibly
+  arrived, not the instant the dispatch network request resolves.
+- `TicketBoard.tsx`: `dispatchTicket` now returns the `agentId`/`sessionId`
+  it actually landed on and fires a new `onDispatched` callback with those
+  plus the origin `DOMRect` (captured from the clicked button before the
+  async dispatch call, both from a card's ▶ button and from "New ticket"
+  via a ref) — letting `App.tsx` own the animation without `TicketBoard`
+  knowing anything about the fleet view.
+- `App.tsx`: on `onDispatched`, holds the destination in `pendingLanding`
+  until the overlay's `onDone` fires, then switches to the Fleet view and
+  selects the session (if already known) or the agent (if it's a fresh
+  `launch()` with no `sessionId` yet — same "Starting…" placeholder path
+  `selectAgent` already used, which promotes to a real session selection
+  the moment `system/init` arrives). A `landed` state then drives a
+  `<ticket-landed-banner>` ("Sub-agent launched for ticket: …", 3.2s
+  self-fading) shown above the tree/placeholder pane, and is threaded into
+  `SessionTree` as `highlightSessionId` so the destination root node gets a
+  `tree-node--launch-highlight` halo (`SessionTree.tsx`/`.css`) — three
+  pulses via `box-shadow` keyframes, distinct from the steady selection
+  ring so "just arrived here" reads as a one-off event, not new persistent
+  state.
+- Verified live end to end in a real browser: dispatched a real ticket with
+  no assignee (forces the `launch()` path), confirmed the view auto-switched
+  to Fleet and landed on the correct "Starting a session in …" placeholder,
+  and confirmed the ticket's status flipped to `in_progress`. The flying
+  card itself is inherently hard to catch by screenshot (a real dispatch
+  round-trip plus a 620ms animation, against tool round-trip latency of
+  1-3s) — confirmed the CSS/rAF mechanism directly by temporarily bumping
+  the flight duration to 4s (`FLIGHT_MS` + the CSS `transition` duration),
+  re-running the same dispatch, screenshotting mid-flight, then reverting
+  both back to 620ms/0.62s before finishing.
+- Real collision hit while verifying, worth knowing if you're picking up
+  ticket/fleet work next: another session was hot-editing `TicketBoard.tsx`
+  and `SessionTree.tsx`/`.css` at the same time (visible as repeated
+  `[vite] hot updated: ...` console lines) — React Fast Refresh reset the
+  ticket-creation form's local state (title/project) mid-interaction more
+  than once, and that session's own commit (`7f26bc7`, "Add marquee
+  rubber-band multi-select and group drag") ended up bundling in this
+  session's already-saved `highlightSessionId`/`tree-node--launch-highlight`
+  edits to those two files, since git has no notion of per-hunk authorship
+  on an uncommitted shared working tree. Nothing was lost — just note that
+  a commit message from one session can end up carrying unrelated changes
+  from another when everyone's editing the same live directory.
+
+## Fixed: launching an agent in a nonexistent directory hung forever, silently (2026-08-07)
+
+User report: "starting session system is still fucked." Reproduced live —
+two Beacon-owned agents sat stuck on "Starting…" in the sidebar
+indefinitely, with a normal-looking, seemingly-enabled prompt box that
+silently did nothing when sent a message. Root-caused with an isolated
+`query()` repro script (not guessed): both agents had been launched with
+`cwd: /Users/apple/Desktop/test`, which **does not exist** on disk.
+
+Two compounding bugs, not one:
+
+1. **No cwd validation before launch.** `POST /api/agents` accepted any
+   string and handed it straight to `supervisor.launch()`. A nonexistent
+   cwd makes the underlying `claude` subprocess spawn fail immediately —
+   and the Agent SDK's error for this is badly misleading: "Claude Code
+   native binary... failed to launch... does not match this system's
+   libc," talking about musl/glibc mismatches that have nothing to do with
+   the real cause. Confirmed via a standalone repro: identical `query()`
+   call succeeds instantly against a real cwd, throws that exact message
+   against a fake one. Fixed in `src/server/routes/agents.ts` — `POST
+   /api/agents` now `stat()`s the cwd first and returns a clean 400
+   (`Directory does not exist: ...` / `Not a directory: ...`) before ever
+   spawning anything. This is the CLAUDE.md-mandated "path-validate every
+   cwd submitted from the UI" that just hadn't been implemented for this
+   route yet (`/api/fs/list` already validates implicitly via `readdir`).
+2. **The failure event was real but only ever broadcast once, live, over
+   WS — never persisted.** `BeaconSession.pump()`'s catch block already
+   correctly emitted `{kind: "closed", error}`, confirmed by watching a raw
+   WS connection during a fresh failing launch. But nothing stored that
+   error on the session itself, and `GET /api/agents`
+   (`AgentSummary`/`summarize()`) never exposed it — so a client that
+   wasn't connected at the exact moment of failure (page loaded later, or
+   the agent just picked from the sidebar afterward) had no way to ever
+   learn the session had died. It looked identical to a session that was
+   still genuinely starting, forever. Fixed by adding `ended`/`endError` to
+   `BeaconSession` (set in `pump()`'s try and catch paths, not just emitted
+   as an event), threading it through `AgentSummary` → `useAgents.ts` →
+   `App.tsx`'s pending-agent placeholder and a new `endError` prop on
+   `SessionDetail` — merged with the existing live-WS `closed` state
+   (`effectiveClosed = closed ?? (persistedEndError ? {error} : null)`)
+   rather than replacing it, so both the "caught it live" and "found out
+   later" cases render the same disabled-controls + error banner.
+- Verified both fixes for real: spun up a second `beacon-fleet` server
+  instance on a spare port (didn't touch the shared dev server other
+  sessions had open, to avoid killing anyone's in-flight owned-agent
+  subprocesses) plus a Vite dev instance pointed at it via a throwaway
+  `--config` (didn't touch the shared `vite.config.ts` either). Confirmed
+  via curl: bad cwd → clean 400, zero agents created; a different
+  after-launch failure (bogus `resume` id) → `ended: true` and the real
+  `endError` message correctly appear in `GET /api/agents` and survive
+  across requests. Confirmed live in the actual browser UI: typing a
+  nonexistent path and clicking "New session" now shows "Directory does
+  not exist: ..." immediately inline, no doomed agent ever appears in the
+  sidebar.
+- Not yet done: the two originally-reported stuck `/Desktop/test` agents
+  are on the *shared* dev server (port 4317, plain `tsx`, no `--watch`) and
+  won't reflect this fix until that process restarts — deliberately not
+  restarted here since other concurrent sessions may have real owned-agent
+  subprocesses running under it that a restart would kill mid-turn. Ask
+  before restarting it, or restart next time you're touching that process
+  anyway.
+
+## Typeface: self-hosted Sora, replacing the plain system-font stack (2026-08-07)
+
+User feedback: "better cooler nicer fun font on the entire website, feels
+sad" — the `-apple-system, BlinkMacSystemFont, ...` system stack (unchanged
+since the very first design pass) reads as generic/default, not deliberate.
+
+- Installed `@fontsource/sora` (`web/package.json`) rather than a Google
+  Fonts `<link>` — CLAUDE.md requires the UI work fully offline with no
+  external CDN, and Fontsource ships the actual woff2 files in the npm
+  package, self-hosted, bundled by Vite into `dist/assets` like any other
+  asset (hashed filenames, no runtime network request). Imported the
+  latin-only 400/500/600/700 weight CSS files directly in `main.tsx` (the
+  ones actually used anywhere in `web/src`, checked via `grep -roh
+  "font-weight: ..."` — no point shipping 100/200/300/800 nothing
+  references) — latin-only, not latin+latin-ext, since the app's UI text is
+  English-only and the extended set would roughly double the payload for
+  characters nothing here renders.
+- `--font` in `theme.css` now leads with `"Sora"`, keeping the old system
+  stack as fallback (covers the instant before the woff2 loads, and as a
+  safety net if the import ever fails).
+- Verified for real, not just "the import doesn't error": checked
+  `document.fonts.status` (`"loaded"`) and `[...document.fonts]` in a real
+  browser tab and confirmed all four Sora weights actually active, then
+  visually compared before/after screenshots across the sidebar, session
+  tree, and ticket board in both zoomed and full-page views — legible at
+  the smallest UI sizes used (`--text-2xs`/`--text-xs`), not just at
+  heading size.
+
 ## Notes on how this repo is being built
 
 - Multiple sessions share this literal working directory — not git

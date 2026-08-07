@@ -12,6 +12,7 @@
   min-width: 0;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   background: var(--bg-inset);
   color: var(--text);
   font-family: inherit;
@@ -34,6 +35,7 @@
   align-items: center;
   justify-content: center;
   border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text-secondary);
   cursor: pointer;
@@ -57,7 +59,9 @@
   z-index: 20;
   background: var(--surface);
   border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -109,7 +113,12 @@
 
 .path-picker__row svg {
   color: var(--text-tertiary);
+}
+
+.path-picker__folder-icon {
   flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
 }
 
 .path-picker__hint,
@@ -133,6 +142,7 @@
 .path-picker__select {
   padding: 5px var(--space-3);
   border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
   background: var(--accent-dim);
   color: var(--accent);
   font-size: var(--text-xs);

@@ -102,8 +102,54 @@
 }
 
 .app__tree {
+  position: relative;
   flex: 1;
   min-width: 0;
+}
+
+/* Confirms where a just-dispatched ticket landed, right after the flying
+   card overlay hands off into the real Fleet view — fades on its own so
+   it never needs a manual dismiss, matching the tree node's own halo
+   timing (LANDED_HIGHLIGHT_MS in App.tsx). */
+.ticket-landed-banner {
+  position: absolute;
+  top: var(--space-3);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  border: 1px solid var(--accent-border);
+  box-shadow: var(--shadow-md);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  max-width: min(80%, 480px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: ticket-landed-fade 3.2s var(--ease) forwards;
+}
+
+.ticket-landed-banner strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+@keyframes ticket-landed-fade {
+  0%,
+  78% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-6px);
+  }
 }
 
 .app__detail {

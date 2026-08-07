@@ -53,6 +53,24 @@ export function SessionsSidebar({ agents, launch, selectedSessionId, selectedAge
 
   const ownedSessionIds = new Set(agents.filter((a) => a.sessionId).map((a) => a.sessionId as string));
 
+  // A session Beacon just launched shows up in discovery (fs.watch on its
+  // own ~/.claude/sessions/<pid>.json, near-instant) well before Beacon's
+  // own supervisor learns its sessionId — that only arrives via the SDK's
+  // system/init message, which the underlying subprocess doesn't emit
+  // until the *first prompt* is sent (see CLAUDE.md). Until then it's the
+  // same session appearing twice: once as this sidebar's own "Starting…"
+  // row, and once as what looks like an unrelated, unowned discovered
+  // session offering "Adopt." Clicking that Adopt is actively dangerous —
+  // it SIGTERMs the very process Beacon just launched and tries to resume
+  // it, which fails with "No conversation found" if it hasn't persisted a
+  // transcript yet. Suppress the discovered duplicate for as long as a
+  // pending agent with the same cwd exists; once the real link lands
+  // (agentIdBySessionId), the row simply stops being pending and renders
+  // normally like any other owned session.
+  const pendingCwds = new Set(agents.filter((a) => !a.sessionId).map((a) => a.cwd));
+  const isPhantomOfPendingLaunch = (session: DiscoveredSession) =>
+    !ownedSessionIds.has(session.sessionId) && pendingCwds.has(session.cwd);
+
   function handleRowClick(e: MouseEvent, sessionId: string) {
     if (e.shiftKey) {
       setMultiSelected((prev) => {
@@ -253,7 +271,9 @@ export function SessionsSidebar({ agents, launch, selectedSessionId, selectedAge
         ))}
 
         {groups.map((group) => {
-          const visible = liveOnly ? group.sessions.filter((s) => s.alive) : group.sessions;
+          const visible = (liveOnly ? group.sessions.filter((s) => s.alive) : group.sessions).filter(
+            (s) => !isPhantomOfPendingLaunch(s),
+          );
           if (visible.length === 0) return null;
           return (
             <div

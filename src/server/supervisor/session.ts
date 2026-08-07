@@ -38,6 +38,16 @@ export class BeaconSession {
   /** The Claude Code session id — known once the `system`/`init` message
    * arrives, not at construction time. */
   sessionId?: string;
+  /** Set once the underlying session ends for any reason — natural
+   * completion, a spawn/runtime error (e.g. a nonexistent cwd), or kill().
+   * A dead BeaconSession never produces a sessionId or further messages.
+   * Persisted here (not just emitted as a one-shot "closed" WS event) so a
+   * client that connects or selects this agent *after* the failure already
+   * happened — page reload, or just picking it from the sidebar later —
+   * can still see it, instead of the UI showing "Starting…" forever with a
+   * prompt box that silently no-ops. */
+  ended = false;
+  endError?: string;
 
   private readonly inbox = new PushQueue<SDKUserMessage>();
   private readonly abortController = new AbortController();
@@ -50,6 +60,17 @@ export class BeaconSession {
   constructor(id: string, opts: BeaconSessionOptions) {
     this.id = id;
     this.cwd = opts.cwd;
+    // A resumed session's id is already known synchronously — it's
+    // opts.resume itself. Seed it immediately rather than waiting for the
+    // system/init message: the underlying `claude` subprocess (streaming
+    // input) emits nothing, including init, until the first prompt is
+    // pushed into the inbox — and for adopt-via-resume specifically,
+    // nothing can be pushed until the frontend already knows the agent's
+    // sessionId (that's what unlocks the prompt box), which is a deadlock
+    // without this. pump() below still overwrites this if init reports a
+    // different id — e.g. the resume-cwd-mismatch trap in CLAUDE.md, which
+    // silently starts a fresh session instead of resuming.
+    if (opts.resume) this.sessionId = opts.resume;
 
     this.permissions.onRequest = (request) => {
       this.onEvent?.({ kind: "permission-request", request });
@@ -80,9 +101,12 @@ export class BeaconSession {
         }
         this.onEvent?.({ kind: "message", message });
       }
+      this.ended = true;
       this.onEvent?.({ kind: "closed" });
     } catch (err) {
-      this.onEvent?.({ kind: "closed", error: err instanceof Error ? err.message : String(err) });
+      this.ended = true;
+      this.endError = err instanceof Error ? err.message : String(err);
+      this.onEvent?.({ kind: "closed", error: this.endError });
     }
   }
 

@@ -21,8 +21,17 @@ const POLL_INTERVAL_MS = 2000;
 export interface UseTicketsResult {
   tickets: Ticket[];
   error: string | null;
-  createTicket: (input: { title: string; project: string; priority?: TicketPriority }) => Promise<{ ok: boolean; error?: string }>;
-  updateTicket: (id: number, input: Partial<Pick<Ticket, "status" | "title" | "body" | "priority">>) => Promise<{ ok: boolean; error?: string }>;
+  createTicket: (input: {
+    title: string;
+    body?: string;
+    project: string;
+    priority?: TicketPriority;
+    assignee?: string | null;
+  }) => Promise<{ ok: true; ticket: Ticket } | { ok: false; error?: string }>;
+  updateTicket: (
+    id: number,
+    input: Partial<Pick<Ticket, "status" | "title" | "body" | "priority" | "assignee">>,
+  ) => Promise<{ ok: boolean; error?: string }>;
   deleteTicket: (id: number) => Promise<{ ok: boolean; error?: string }>;
 }
 
@@ -60,25 +69,28 @@ export function useTickets(): UseTicketsResult {
     };
   }, []);
 
-  const createTicket = useCallback(async (input: { title: string; project: string; priority?: TicketPriority }) => {
-    try {
-      const res = await fetch("/api/tickets", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(input),
-      });
-      if (!res.ok) {
+  const createTicket = useCallback(
+    async (input: { title: string; body?: string; project: string; priority?: TicketPriority; assignee?: string | null }) => {
+      try {
+        const res = await fetch("/api/tickets", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(input),
+        });
         const body = await res.json().catch(() => ({}));
-        return { ok: false, error: body.error ?? `Failed (${res.status})` };
+        if (!res.ok) {
+          return { ok: false as const, error: body.error ?? `Failed (${res.status})` };
+        }
+        return { ok: true as const, ticket: body as Ticket };
+      } catch (err) {
+        return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
       }
-      return { ok: true };
-    } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
-    }
-  }, []);
+    },
+    [],
+  );
 
   const updateTicket = useCallback(
-    async (id: number, input: Partial<Pick<Ticket, "status" | "title" | "body" | "priority">>) => {
+    async (id: number, input: Partial<Pick<Ticket, "status" | "title" | "body" | "priority" | "assignee">>) => {
       try {
         const res = await fetch(`/api/tickets/${id}`, {
           method: "PATCH",

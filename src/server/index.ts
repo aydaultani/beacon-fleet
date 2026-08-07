@@ -4,7 +4,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import fastifyStatic from "@fastify/static";
 import { registerAuthGate, isLoopbackHost } from "./auth.js";
 import { DiscoveryService } from "./discovery/index.js";
-import { readTranscriptSince } from "./transcripts/index.js";
+import { readTranscriptSince, MachineUsageTracker } from "./transcripts/index.js";
 import { SupervisorManager } from "./supervisor/index.js";
 import { registerAgentRoutes } from "./routes/agents.js";
 import { registerTicketRoutes } from "./routes/tickets.js";
@@ -12,6 +12,7 @@ import { registerLayoutRoutes } from "./routes/layout.js";
 import { registerFsRoutes } from "./routes/fs.js";
 import { registerSubagentRoutes } from "./routes/subagents.js";
 import { registerSessionGroupRoutes } from "./routes/session-groups.js";
+import { registerUsageRoutes } from "./routes/usage.js";
 import { registerWebSocketHub } from "./ws.js";
 import { openDatabase, SqliteTicketsCore, SqliteLayoutStore, SqliteSessionGroupsStore } from "../db/index.js";
 import { registerTicketsMcpRoute } from "./mcp/http-server.js";
@@ -48,6 +49,10 @@ export async function startServer({ port, host }: StartServerOptions): Promise<S
     for (const session of supervisor.list()) session.kill();
   });
 
+  const machineUsage = new MachineUsageTracker();
+  await machineUsage.start();
+  app.addHook("onClose", async () => machineUsage.stop());
+
   app.get("/api/health", async () => ({ ok: true }));
   app.get("/api/sessions", async () => discovery.list());
 
@@ -57,8 +62,9 @@ export async function startServer({ port, host }: StartServerOptions): Promise<S
   registerFsRoutes(app);
   registerSubagentRoutes(app, discovery);
   registerSessionGroupRoutes(app, sessionGroups);
+  registerUsageRoutes(app, machineUsage);
   registerTicketsMcpRoute(app, tickets);
-  await registerWebSocketHub(app, discovery, supervisor);
+  await registerWebSocketHub(app, discovery, supervisor, machineUsage);
 
   app.get("/api/sessions/:sessionId/transcript", async (req, reply) => {
     const { sessionId } = req.params as { sessionId: string };
