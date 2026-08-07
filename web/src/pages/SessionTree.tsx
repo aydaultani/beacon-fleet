@@ -1,4 +1,11 @@
-import { useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  type WheelEvent as ReactWheelEvent,
+} from "react";
 import type { DiscoveredSession, SessionStatus } from "../hooks/useSessions.js";
 import type { SubagentSummary } from "../hooks/useSubagents.js";
 import { useSubagents } from "../hooks/useSubagents.js";
@@ -15,6 +22,10 @@ export interface SessionTreeProps {
   agentIdBySessionId: Map<string, string>;
   selectedNode: SelectedNode | null;
   onSelectNode: (node: SelectedNode) => void;
+  /** A session root just landed on from the ticket-dispatch flying-card
+   * animation — briefly rings it so "this is the sub-agent we launched for
+   * that ticket" is unambiguous, not just implied by selection. */
+  highlightSessionId?: string | null;
   onAdopt: (sessionId: string) => void;
   onInterrupt: (agentId: string) => void;
   onKill: (agentId: string) => void;
@@ -50,6 +61,11 @@ const CHILD_H = 40;
 const ROOT_GAP_X = 60;
 const CHILD_GAP_X = 24;
 const ROW_GAP_Y = 96;
+// Subagents only ever extend one row below their root (never stacked
+// deeper), so this is a fixed, safe height for one full grid row —
+// letting default placement wrap into a row/column grid without needing
+// to know each session's actual subagent count ahead of time.
+const GRID_ROW_H = ROOT_H + ROW_GAP_Y + CHILD_H;
 const CANVAS_PADDING = 40;
 const DRAG_THRESHOLD_PX = 4;
 const MIN_ZOOM = 0.25;
@@ -63,9 +79,11 @@ interface Point {
 }
 
 interface DragState {
-  id: string;
-  baseX: number;
-  baseY: number;
+  /** Every node moving together — just [id] for a normal single-node
+   * drag, or the whole marquee selection when dragging any member of a
+   * multi-selected group. */
+  ids: string[];
+  basePositions: Map<string, Point>;
   startClientX: number;
   startClientY: number;
   dx: number;
@@ -74,10 +92,18 @@ interface DragState {
 
 /** Free-drag positioning shared by every node (session roots and subagent
  * children) in the whole canvas. Centralized here rather than per-node —
- * only one node can be dragged at a time app-wide, and a child's default
- * position depends on its parent's *live* position while the parent is
- * mid-drag, so both need to read from one shared source of truth. */
-function useDragLayout(setTilePosition: (id: string, x: number, y: number, parentId: string | null) => void, zoom: number) {
+ * only one *group* can be dragged at a time app-wide, and a child's
+ * default position depends on its parent's *live* position while the
+ * parent is mid-drag, so both need to read from one shared source of
+ * truth. `measurePositions` reads real DOM boxes (offsetLeft/offsetTop,
+ * unaffected by the canvas's CSS `scale` transform) rather than
+ * recomputing each node's position formula here — same technique the
+ * existing "Fit" button already uses. */
+function useDragLayout(
+  setTilePosition: (id: string, x: number, y: number, parentId: string | null) => void,
+  zoom: number,
+  measurePositions: (ids: string[]) => Map<string, Point>,
+) {
   const [drag, setDrag] = useState<DragState | null>(null);
   // Whether the current gesture has crossed the drag threshold. A ref, not
   // state: it's read inside the setDrag updater below, which React (under
@@ -88,19 +114,30 @@ function useDragLayout(setTilePosition: (id: string, x: number, y: number, paren
   const didDragRef = useRef(false);
 
   function resolvePos(id: string, layout: Map<string, LayoutTile>, defaultPos: Point): Point {
-    if (drag && drag.id === id) {
-      return { x: Math.max(0, drag.baseX + drag.dx), y: Math.max(0, drag.baseY + drag.dy) };
+    if (drag) {
+      const base = drag.basePositions.get(id);
+      if (base) return { x: Math.max(0, base.x + drag.dx), y: Math.max(0, base.y + drag.dy) };
     }
     const stored = layout.get(id);
     return stored ? { x: stored.x, y: stored.y } : defaultPos;
   }
 
-  function onPointerDown(id: string, e: ReactPointerEvent<HTMLElement>, currentPos: Point) {
+  /** `groupIds` is every id that should move together — pass just `[id]`
+   * for a plain single-node drag, or the full multi-selection when the
+   * grabbed node is part of one. */
+  function onPointerDown(id: string, e: ReactPointerEvent<HTMLElement>, currentPos: Point, groupIds: string[] = [id]) {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     didDragRef.current = false;
-    setDrag({ id, baseX: currentPos.x, baseY: currentPos.y, startClientX: e.clientX, startClientY: e.clientY, dx: 0, dy: 0 });
+    const ids = groupIds.includes(id) ? groupIds : [id];
+    const basePositions = measurePositions(ids);
+    // The grabbed node's own position is authoritative even if the DOM
+    // measurement raced a re-render — everything else in the group still
+    // moves relative to its own measured position, so the group doesn't
+    // visibly shear.
+    basePositions.set(id, currentPos);
+    setDrag({ ids, basePositions, startClientX: e.clientX, startClientY: e.clientY, dx: 0, dy: 0 });
   }
 
   function onPointerMove(e: ReactPointerEvent<HTMLElement>) {
@@ -119,7 +156,10 @@ function useDragLayout(setTilePosition: (id: string, x: number, y: number, paren
   function endDrag() {
     setDrag((prev) => {
       if (prev && didDragRef.current) {
-        setTilePosition(prev.id, Math.max(0, prev.baseX + prev.dx), Math.max(0, prev.baseY + prev.dy), null);
+        for (const id of prev.ids) {
+          const base = prev.basePositions.get(id);
+          if (base) setTilePosition(id, Math.max(0, base.x + prev.dx), Math.max(0, base.y + prev.dy), null);
+        }
       }
       return null;
     });
@@ -139,7 +179,7 @@ function useDragLayout(setTilePosition: (id: string, x: number, y: number, paren
 
   return {
     resolvePos,
-    isDragging: (id: string) => drag?.id === id,
+    isDragging: (id: string) => drag?.ids.includes(id) ?? false,
     onPointerDown,
     onPointerMove,
     onPointerUp: endDrag,
@@ -150,11 +190,32 @@ function useDragLayout(setTilePosition: (id: string, x: number, y: number, paren
 
 type DragApi = ReturnType<typeof useDragLayout>;
 
+interface MarqueeRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+function normalizeRect(startX: number, startY: number, curX: number, curY: number): MarqueeRect {
+  return {
+    x: Math.min(startX, curX),
+    y: Math.min(startY, curY),
+    width: Math.abs(curX - startX),
+    height: Math.abs(curY - startY),
+  };
+}
+
+function rectsIntersect(a: MarqueeRect, b: MarqueeRect): boolean {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
 export function SessionTree({
   sessions,
   agentIdBySessionId,
   selectedNode,
   onSelectNode,
+  highlightSessionId,
   onAdopt,
   onInterrupt,
   onKill,
@@ -162,11 +223,105 @@ export function SessionTree({
 }: SessionTreeProps) {
   const { layout, setTilePosition } = useLayout();
   const [zoom, setZoom] = useState(1);
-  const dragApi = useDragLayout(setTilePosition, zoom);
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const [delegatePrompt, setDelegatePrompt] = useState<{ x: number; y: number; agentId: string; text: string } | null>(null);
   const treeRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
+
+  /** Reads each requested node's real, current on-screen box
+   * (offsetLeft/offsetTop are relative to the canvas's own layout, so
+   * they're unaffected by the canvas's CSS `scale(zoom)` transform) —
+   * used both to seed a group drag's base positions and to test which
+   * nodes a marquee rectangle actually covers. */
+  function measurePositions(ids: string[]): Map<string, Point> {
+    const wanted = new Set(ids);
+    const result = new Map<string, Point>();
+    const canvas = canvasRef.current;
+    if (!canvas) return result;
+    canvas.querySelectorAll<HTMLElement>("[data-node-id]").forEach((el) => {
+      const id = el.dataset.nodeId;
+      if (id && wanted.has(id)) result.set(id, { x: el.offsetLeft, y: el.offsetTop });
+    });
+    return result;
+  }
+
+  const dragApi = useDragLayout(setTilePosition, zoom, measurePositions);
+
+  // Marquee (rubber-band) multi-select — drag a rectangle over empty
+  // canvas space, like a Mac screenshot selection or Figma, to select
+  // several nodes at once and then drag any one of them to move the
+  // whole group together.
+  const [multiSelected, setMultiSelected] = useState<Set<string>>(new Set());
+  const [marquee, setMarquee] = useState<{ startX: number; startY: number; curX: number; curY: number } | null>(null);
+  const marqueeDraggedRef = useRef(false);
+
+  function canvasLocalPoint(e: ReactPointerEvent<HTMLElement>): Point {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    return { x: (e.clientX - rect.left) / zoom, y: (e.clientY - rect.top) / zoom };
+  }
+
+  // Nodes call stopPropagation() in their own onPointerDown, so this only
+  // ever fires for a press that started on empty canvas space.
+  function handleCanvasPointerDown(e: ReactPointerEvent<HTMLDivElement>) {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    marqueeDraggedRef.current = false;
+    const { x, y } = canvasLocalPoint(e);
+    setMarquee({ startX: x, startY: y, curX: x, curY: y });
+  }
+
+  function handleCanvasPointerMove(e: ReactPointerEvent<HTMLDivElement>) {
+    if (!marquee) return;
+    const { x, y } = canvasLocalPoint(e);
+    if (!marqueeDraggedRef.current && Math.hypot(x - marquee.startX, y - marquee.startY) * zoom > DRAG_THRESHOLD_PX) {
+      marqueeDraggedRef.current = true;
+    }
+    setMarquee((prev) => (prev ? { ...prev, curX: x, curY: y } : prev));
+  }
+
+  function handleCanvasPointerUp() {
+    if (!marquee) return;
+    if (!marqueeDraggedRef.current) {
+      // A plain click on empty canvas — deselect rather than select
+      // nothing, matching how clicking empty space works in Figma etc.
+      setMultiSelected(new Set());
+      setMarquee(null);
+      return;
+    }
+    const rect = normalizeRect(marquee.startX, marquee.startY, marquee.curX, marquee.curY);
+    const canvas = canvasRef.current;
+    const hit = new Set<string>();
+    if (canvas) {
+      canvas.querySelectorAll<HTMLElement>("[data-node-id]").forEach((el) => {
+        const id = el.dataset.nodeId;
+        if (!id) return;
+        const box: MarqueeRect = { x: el.offsetLeft, y: el.offsetTop, width: el.offsetWidth, height: el.offsetHeight };
+        if (rectsIntersect(rect, box)) hit.add(id);
+      });
+    }
+    setMultiSelected(hit);
+    setMarquee(null);
+  }
+
+  // Default node placement wraps into this many columns before starting a
+  // new row — measured from the actual pane so "everything visible on
+  // load" adapts to whatever width the sidebar/detail resize leaves it,
+  // instead of a single ever-widening horizontal strip that always needs
+  // horizontal scrolling once there are more than a handful of sessions.
+  // useLayoutEffect (not useEffect) so the first real measurement lands
+  // before paint — no visible jump from a fallback size to the real one.
+  const [paneSize, setPaneSize] = useState({ width: 900, height: 600 });
+  useLayoutEffect(() => {
+    const el = treeRef.current;
+    if (!el) return;
+    const measure = () => setPaneSize({ width: el.clientWidth, height: el.clientHeight });
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   /** Zoom while keeping the point currently under (clientX, clientY) — the
    * cursor by default, the viewport center for the +/- buttons — fixed in
@@ -191,7 +346,14 @@ export function SessionTree({
     });
   }
 
+  /** Plain scroll pans the canvas (native browser scroll — `.tree__scroll`
+   * is just `overflow: auto`, nothing to do here). Cmd (Mac) / Ctrl
+   * (Windows/Linux) + scroll zooms instead, checked via `metaKey ||
+   * ctrlKey` so one check covers both platforms without sniffing the OS —
+   * trackpad pinch-to-zoom gestures also arrive as wheel events with
+   * `ctrlKey: true`, so pinch zooms too for free. */
   function handleWheel(e: ReactWheelEvent<HTMLDivElement>) {
+    if (!e.ctrlKey && !e.metaKey) return;
     e.preventDefault();
     zoomTo(zoom * (1 - e.deltaY * 0.001), e.clientX, e.clientY);
   }
@@ -260,8 +422,17 @@ export function SessionTree({
   // Stable order so un-dragged trees don't jitter between grid slots when
   // the server's session order shifts between polls.
   const orderedSessions = [...sessions].sort((a, b) => a.sessionId.localeCompare(b.sessionId));
-  const canvasWidth = Math.max(1600, orderedSessions.length * (ROOT_W + ROOT_GAP_X) + CANVAS_PADDING * 2 + 400);
-  const canvasHeight = 1600;
+
+  // Wrap, don't stack: fit as many root columns as the pane's actual width
+  // allows, then start a new row below rather than growing the canvas
+  // wider and wider. Only once there are more rows than the pane is tall
+  // does this fall back to (vertical) scrolling — the "extreme case".
+  const columns = Math.max(1, Math.floor((paneSize.width - CANVAS_PADDING * 2 + ROOT_GAP_X) / (ROOT_W + ROOT_GAP_X)));
+  const rows = Math.ceil(orderedSessions.length / columns);
+  const gridWidth = columns * (ROOT_W + ROOT_GAP_X) - ROOT_GAP_X + CANVAS_PADDING * 2;
+  const gridHeight = rows * (GRID_ROW_H + ROW_GAP_Y) - ROW_GAP_Y + CANVAS_PADDING * 2;
+  const canvasWidth = Math.max(paneSize.width, gridWidth);
+  const canvasHeight = Math.max(paneSize.height, gridHeight);
 
   return (
     <div className="tree" onContextMenu={(e) => e.preventDefault()}>
@@ -270,19 +441,33 @@ export function SessionTree({
           className="tree__canvas"
           ref={canvasRef}
           style={{ width: canvasWidth, height: canvasHeight, transform: `scale(${zoom})` }}
+          onPointerDown={handleCanvasPointerDown}
+          onPointerMove={handleCanvasPointerMove}
+          onPointerUp={handleCanvasPointerUp}
+          onPointerCancel={handleCanvasPointerUp}
         >
           {orderedSessions.map((session, index) => (
             <SessionRoot
               key={session.sessionId}
               session={session}
               index={index}
+              columns={columns}
               layout={layout}
               dragApi={dragApi}
               selectedNode={selectedNode}
               onSelectNode={onSelectNode}
               onContextMenu={(e) => openSessionMenu(e, session)}
+              multiSelected={multiSelected}
+              highlighted={session.sessionId === highlightSessionId}
             />
           ))}
+
+          {marquee &&
+            marqueeDraggedRef.current &&
+            (() => {
+              const r = normalizeRect(marquee.startX, marquee.startY, marquee.curX, marquee.curY);
+              return <div className="tree__marquee" style={{ left: r.x, top: r.y, width: r.width, height: r.height }} />;
+            })()}
         </div>
       </div>
 
@@ -346,24 +531,40 @@ function connectorPath(from: Point, fromW: number, fromH: number, to: Point, toW
 function SessionRoot({
   session,
   index,
+  columns,
   layout,
   dragApi,
   selectedNode,
   onSelectNode,
   onContextMenu,
+  multiSelected,
+  highlighted,
 }: {
   session: DiscoveredSession;
   index: number;
+  columns: number;
   layout: Map<string, LayoutTile>;
   dragApi: DragApi;
   selectedNode: SelectedNode | null;
   onSelectNode: (node: SelectedNode) => void;
   onContextMenu: (e: MouseEvent) => void;
+  multiSelected: Set<string>;
+  highlighted: boolean;
 }) {
   const { subagents } = useSubagents(session.sessionId);
   const isRootSelected = selectedNode?.kind === "session" && selectedNode.sessionId === session.sessionId;
+  const groupIds = multiSelected.has(session.sessionId) ? Array.from(multiSelected) : [session.sessionId];
 
-  const rootDefault: Point = { x: index * (ROOT_W + ROOT_GAP_X) + CANVAS_PADDING, y: CANVAS_PADDING };
+  // Row-major grid wrap instead of one ever-widening horizontal line —
+  // every root after the last column starts a new row below rather than
+  // pushing the canvas wider, so the whole fleet stays visible without
+  // horizontal scrolling in the common case.
+  const col = index % columns;
+  const row = Math.floor(index / columns);
+  const rootDefault: Point = {
+    x: col * (ROOT_W + ROOT_GAP_X) + CANVAS_PADDING,
+    y: row * (GRID_ROW_H + ROW_GAP_Y) + CANVAS_PADDING,
+  };
   const rootPos = dragApi.resolvePos(session.sessionId, layout, rootDefault);
 
   const rowWidth = subagents.length > 0 ? subagents.length * CHILD_W + (subagents.length - 1) * CHILD_GAP_X : 0;
@@ -384,15 +585,18 @@ function SessionRoot({
       </svg>
 
       <button
-        className={
-          isRootSelected
-            ? "tree-node tree-node--selected"
-            : dragApi.isDragging(session.sessionId)
-              ? "tree-node tree-node--dragging"
-              : "tree-node"
-        }
+        data-node-id={session.sessionId}
+        className={[
+          "tree-node",
+          isRootSelected && "tree-node--selected",
+          !isRootSelected && multiSelected.has(session.sessionId) && "tree-node--multi-selected",
+          dragApi.isDragging(session.sessionId) && "tree-node--dragging",
+          highlighted && "tree-node--launch-highlight",
+        ]
+          .filter(Boolean)
+          .join(" ")}
         style={{ left: rootPos.x, top: rootPos.y }}
-        onPointerDown={(e) => dragApi.onPointerDown(session.sessionId, e, rootPos)}
+        onPointerDown={(e) => dragApi.onPointerDown(session.sessionId, e, rootPos, groupIds)}
         onPointerMove={dragApi.onPointerMove}
         onPointerUp={dragApi.onPointerUp}
         onPointerCancel={dragApi.onPointerCancel}
@@ -406,20 +610,24 @@ function SessionRoot({
         <span className="tree-node__status">{STATUS_LABEL[session.status]}</span>
       </button>
 
-      {children.map(({ sub, pos }) => (
-        <SubagentNode
-          key={sub.agentId}
-          sub={sub}
-          pos={pos}
-          selected={selectedNode?.kind === "subagent" && selectedNode.agentId === sub.agentId}
-          dragging={dragApi.isDragging(sub.agentId)}
-          onPointerDown={(e) => dragApi.onPointerDown(sub.agentId, e, pos)}
-          onPointerMove={dragApi.onPointerMove}
-          onPointerUp={dragApi.onPointerUp}
-          onPointerCancel={dragApi.onPointerCancel}
-          onClick={() => dragApi.guardClick(() => onSelectNode({ kind: "subagent", sessionId: session.sessionId, agentId: sub.agentId }))}
-        />
-      ))}
+      {children.map(({ sub, pos }) => {
+        const childGroupIds = multiSelected.has(sub.agentId) ? Array.from(multiSelected) : [sub.agentId];
+        return (
+          <SubagentNode
+            key={sub.agentId}
+            sub={sub}
+            pos={pos}
+            selected={selectedNode?.kind === "subagent" && selectedNode.agentId === sub.agentId}
+            multiSelected={multiSelected.has(sub.agentId)}
+            dragging={dragApi.isDragging(sub.agentId)}
+            onPointerDown={(e) => dragApi.onPointerDown(sub.agentId, e, pos, childGroupIds)}
+            onPointerMove={dragApi.onPointerMove}
+            onPointerUp={dragApi.onPointerUp}
+            onPointerCancel={dragApi.onPointerCancel}
+            onClick={() => dragApi.guardClick(() => onSelectNode({ kind: "subagent", sessionId: session.sessionId, agentId: sub.agentId }))}
+          />
+        );
+      })}
     </>
   );
 }
@@ -428,6 +636,7 @@ function SubagentNode({
   sub,
   pos,
   selected,
+  multiSelected,
   dragging,
   onPointerDown,
   onPointerMove,
@@ -438,6 +647,7 @@ function SubagentNode({
   sub: SubagentSummary;
   pos: Point;
   selected: boolean;
+  multiSelected: boolean;
   dragging: boolean;
   onPointerDown: (e: ReactPointerEvent<HTMLElement>) => void;
   onPointerMove: (e: ReactPointerEvent<HTMLElement>) => void;
@@ -445,13 +655,18 @@ function SubagentNode({
   onPointerCancel: (e: ReactPointerEvent<HTMLElement>) => void;
   onClick: () => void;
 }) {
-  const className = selected
-    ? "tree-node tree-node--child tree-node--selected"
-    : dragging
-      ? "tree-node tree-node--child tree-node--dragging"
-      : "tree-node tree-node--child";
+  const className = [
+    "tree-node",
+    "tree-node--child",
+    selected && "tree-node--selected",
+    !selected && multiSelected && "tree-node--multi-selected",
+    dragging && "tree-node--dragging",
+  ]
+    .filter(Boolean)
+    .join(" ");
   return (
     <button
+      data-node-id={sub.agentId}
       className={className}
       style={{ left: pos.x, top: pos.y }}
       onPointerDown={onPointerDown}

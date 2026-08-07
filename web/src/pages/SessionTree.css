@@ -111,6 +111,45 @@
   transition: none;
 }
 
+/* Marquee (rubber-band) multi-select — a rectangle drag over empty canvas
+   space, like a Mac screenshot-area selection or Figma. Dashed, not the
+   solid ring .tree-node--selected uses, so "part of a group I'm about to
+   drag" reads differently from "this is open in the detail panel" even
+   when a node happens to be both at once. */
+.tree-node--multi-selected {
+  border-color: var(--accent);
+  border-style: dashed;
+  box-shadow: 0 0 0 2px var(--accent-dim);
+}
+
+.tree__marquee {
+  position: absolute;
+  z-index: 30;
+  border: 1px solid var(--accent);
+  background: var(--accent-dim);
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+}
+
+/* Rung a few times right after the ticket-launch flying-card animation
+   lands on this node — a halo expanding out from the border, distinct
+   from the steady selection ring above so "just arrived here" reads as a
+   one-off event rather than a persistent state. */
+@keyframes tree-node-launch-halo {
+  0% {
+    box-shadow: 0 0 0 0 var(--accent-border);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 16px transparent;
+  }
+}
+
+.tree-node--launch-highlight {
+  border-color: var(--accent);
+  animation: tree-node-launch-halo 1s var(--ease) 3;
+}
+
 .tree-node__dot {
   width: 8px;
   height: 8px;
